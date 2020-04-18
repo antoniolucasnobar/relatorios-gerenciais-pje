@@ -61,7 +61,7 @@ FROM
             )
         -- escolhe se quer apenas os arquivados definitivamente ou provisoriamente
          AND  (
-              select ev.cd_evento = :CODIGO_MOVIMENTOS_ARQUIVAMENTO
+              select ev.cd_evento = :TIPO_ARQUIVAMENTO 
               from
                   tb_processo_evento prev
                       join
@@ -77,4 +77,3 @@ FROM
           )
      ) bndt
     order by bndt.nr_processo
-;
