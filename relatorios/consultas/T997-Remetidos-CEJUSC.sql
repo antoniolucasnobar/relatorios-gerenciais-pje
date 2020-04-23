@@ -1,3 +1,28 @@
+-- #Título
+-- Processos Remetidos ou Devolvidos para Posto avançado (CEJUSC / JAEP)
+
+-- #Código
+-- T997
+
+-- #Nome no menu
+-- Processos Remetidos ou Devolvidos para Posto avançado (CEJUSC / JAEP)
+
+-- #Menu superior
+-- Vara
+
+-- #Glossário
+-- Lista os processos que foram enviados de um OJ para um Posto avançado, bem como os devolvidos do Posto avançado para OJ de origem.
+-- <br />
+-- <br />
+-- <ul>
+-- <li><strong>Remetidos</strong> - lista os processos que foram remetidos e <strong>estão</strong> no Posto avançado.
+-- Ao selecionar esta opção, o filtro do período se aplica a data do envio ao Posto</li>
+-- <li><strong>Devolvidos</strong> - lista os processos que foram devolvidos ao OJ de origem.
+-- Ao selecionar esta opção, o filtro do período se aplica a data da devolução ao OJ de origem
+-- </li>
+-- </ul>
+-- Onde consta "Posto avançado" aplica-se também CEJUSC / JAEP
+
   SELECT 'http://processo='||p.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_DETALHES_PROCESSO' as " ",
         'http://processo='||p.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_TAREFA&texto='||cj.ds_classe_judicial_sigla||' '||p.nr_processo as "Processo",
 
@@ -9,7 +34,7 @@
     FROM tb_orgao_julgador oj
     WHERE oj.id_orgao_julgador = desloc.id_oj_destino) as "CEJUSC / JAEP / Posto avançado",
   to_char(desloc.dt_deslocamento, 'dd/mm/yyyy hh24:mi') as "Envio ao CEJUSC / JAEP / Posto",
-  to_char(desloc.dt_retorno, 'dd/mm/yyyy hh24:mi') as "Retorno do CEJUSC / JAEP / Posto",
+  to_char(desloc.dt_retorno, 'dd/mm/yyyy hh24:mi') as "Devolvido ao OJ",
   fase.nm_agrupamento_fase as "Fase",
   ptar.nm_tarefa as "Tarefa"
   from tb_processo p
