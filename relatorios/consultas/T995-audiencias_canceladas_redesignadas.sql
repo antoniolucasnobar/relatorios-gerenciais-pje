@@ -45,11 +45,11 @@ with audiencias_canceladas_remarcadas as (
                 AND sala.id_orgao_julgador = coalesce(:ORGAO_JULGADOR_TODOS,sala.id_orgao_julgador) --Incluir o parâmetro de filtro OJ
                 and ((:ID_TIPO_AUDIENCIA  is null) or (:ID_TIPO_AUDIENCIA  = ta.id_tipo_audiencia))
                 )
-                select
+                SELECT
                 'http://processo='||pe.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_DETALHES_PROCESSO' as " ",
                 'http://processo='||pe.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_TAREFA&texto='||pe.nr_processo as "Processo",
                 fase.nm_agrupamento_fase as "Fase",
---                 oje.ds_orgao_julgador as "Unidade",
+                -- cargo.cd_cargo as "Cargo",
                 ojc.ds_cargo as "Cargo",
                 to_char(pe.dta_audiencia,'dd/MM/yyyy HH24:mi:ss') as "Data da última audiência",
                 to_char(pe.dt_cancelamento,'dd/MM/yyyy HH24:mi:ss') as "Data do cancelamento",
@@ -57,10 +57,56 @@ with audiencias_canceladas_remarcadas as (
                 pe.ds_tipo_audiencia as "Tipo da Audiência",
                 pe.cd_status_audiencia as "Status",
                 pe.name_ as "Tarefa Atual"
+                ,
+
+                -- (SELECT trim(ul1.ds_nome) 
+                --   FROM tb_processo_parte ativo1
+                --   join tb_usuario_login ul1 on ativo1.id_pessoa = ul1.id_usuario
+                --   WHERE ativo1.id_processo_trf = pe.id_processo
+                --         AND ativo1.in_participacao in ('A')
+                --         AND ativo1.in_parte_principal = 'S'
+                --         AND ativo1.nr_ordem = 1
+                --  ) AS "Polo ativo"
+                (SELECT trim(ul1.ds_nome) FROM tb_usuario_login ul1 WHERE ativo1.id_pessoa = ul1.id_usuario) 
+                || ' X ' ||
+                (SELECT trim(ul1.ds_nome) FROM tb_usuario_login ul1 WHERE passivo1.id_pessoa = ul1.id_usuario) 
+                 AS "Partes"
+                
+        -- (select string_agg(trim(ul1.ds_nome) || ' - ' || trim(tpart.ds_tipo_parte),E'<br/>')
+        --  from tb_processo_parte ativo1
+        --  join tb_tipo_parte tpart on (ativo1.id_tipo_parte = tpart.id_tipo_parte)
+        --  LEFT join tb_usuario_login ul1 on ativo1.id_pessoa = ul1.id_usuario
+        --  where ativo1.id_processo_trf = pe.id_processo
+        --          and ativo1.in_participacao in ('A')
+        --          and ativo1.id_tipo_parte <> 7
+        --          and ativo1.in_situacao = 'A') as "Partes - Polo ativo",
+
+        -- (select string_agg(trim(ul1.ds_nome) || ' - ' || trim(tpart.ds_tipo_parte),E'<br/>')
+        --  from tb_processo_parte ativo1
+        --  join tb_tipo_parte tpart on (ativo1.id_tipo_parte = tpart.id_tipo_parte)
+        --  LEFT join tb_usuario_login ul1 on ativo1.id_pessoa = ul1.id_usuario
+        --  where ativo1.id_processo_trf = pe.id_processo_trf
+        --          and ativo1.in_participacao in ('P')
+        --          and ativo1.id_tipo_parte <> 7
+        --          and ativo1.in_situacao = 'A') as "Partes - Polo passivo"
+
                 from audiencias_canceladas_remarcadas pe
                 inner join tb_orgao_julgador oje on (pe.id_orgao_julgador = oje.id_orgao_julgador)
                 inner join tb_agrupamento_fase fase on (pe.id_agrupamento_fase = fase.id_agrupamento_fase)
                 inner join tb_orgao_julgador_cargo ojc ON (pe.id_orgao_julgador_cargo = ojc.id_orgao_julgador_cargo)
+                -- inner join tb_cargo cargo ON (ojc.id_cargo = cargo.id_cargo)
+                INNER JOIN tb_processo_parte ativo1 ON 
+                        (ativo1.id_processo_trf = pe.id_processo
+                                AND ativo1.in_participacao in ('A')
+                                AND ativo1.in_parte_principal = 'S'
+                                AND ativo1.nr_ordem = 1
+                        )
+                INNER JOIN tb_processo_parte passivo1 ON 
+                        (passivo1.id_processo_trf = pe.id_processo
+                                AND passivo1.in_participacao in ('P')
+                                AND passivo1.in_parte_principal = 'S'
+                                AND passivo1.nr_ordem = 1
+                        )
                 where
                 ((:CARGO is null) or (position(:CARGO in ojc.ds_cargo) > 0))
                 and ((:ID_FASE_PROCESSUAL is null) or (:ID_FASE_PROCESSUAL = pe.id_agrupamento_fase))
