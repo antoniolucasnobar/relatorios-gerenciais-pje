@@ -68,28 +68,21 @@ with audiencias_canceladas_remarcadas as (
                 --         AND ativo1.nr_ordem = 1
                 --  ) AS "Polo ativo"
                 (SELECT trim(ul1.ds_nome) FROM tb_usuario_login ul1 WHERE ativo1.id_pessoa = ul1.id_usuario) 
+                || CASE
+                        WHEN (ativo2.id_pessoa IS NOT NULL) THEN ' E OUTROS'
+                        ELSE ''
+                   END
+                --   (SELECT ' E OUTROS' FROM tb_usuario_login ul1 WHERE ativo2.id_pessoa = ul1.id_usuario) 
                 || ' X ' ||
                 (SELECT trim(ul1.ds_nome) FROM tb_usuario_login ul1 WHERE passivo1.id_pessoa = ul1.id_usuario) 
+                || CASE
+                        WHEN (ativo2.id_pessoa IS NOT NULL) THEN ' E OUTROS'
+                        ELSE ''
+                   END
+                -- || (SELECT ' E OUTROS' FROM tb_usuario_login ul1 WHERE passivo2.id_pessoa = ul1.id_usuario) 
+
                  AS "Partes"
                 
-        -- (select string_agg(trim(ul1.ds_nome) || ' - ' || trim(tpart.ds_tipo_parte),E'<br/>')
-        --  from tb_processo_parte ativo1
-        --  join tb_tipo_parte tpart on (ativo1.id_tipo_parte = tpart.id_tipo_parte)
-        --  LEFT join tb_usuario_login ul1 on ativo1.id_pessoa = ul1.id_usuario
-        --  where ativo1.id_processo_trf = pe.id_processo
-        --          and ativo1.in_participacao in ('A')
-        --          and ativo1.id_tipo_parte <> 7
-        --          and ativo1.in_situacao = 'A') as "Partes - Polo ativo",
-
-        -- (select string_agg(trim(ul1.ds_nome) || ' - ' || trim(tpart.ds_tipo_parte),E'<br/>')
-        --  from tb_processo_parte ativo1
-        --  join tb_tipo_parte tpart on (ativo1.id_tipo_parte = tpart.id_tipo_parte)
-        --  LEFT join tb_usuario_login ul1 on ativo1.id_pessoa = ul1.id_usuario
-        --  where ativo1.id_processo_trf = pe.id_processo_trf
-        --          and ativo1.in_participacao in ('P')
-        --          and ativo1.id_tipo_parte <> 7
-        --          and ativo1.in_situacao = 'A') as "Partes - Polo passivo"
-
                 from audiencias_canceladas_remarcadas pe
                 inner join tb_orgao_julgador oje on (pe.id_orgao_julgador = oje.id_orgao_julgador)
                 inner join tb_agrupamento_fase fase on (pe.id_agrupamento_fase = fase.id_agrupamento_fase)
@@ -107,7 +100,19 @@ with audiencias_canceladas_remarcadas as (
                                 AND passivo1.in_parte_principal = 'S'
                                 AND passivo1.nr_ordem = 1
                         )
-                where
+                 LEFT JOIN tb_processo_parte ativo2 ON 
+                        (ativo2.id_processo_trf = pe.id_processo
+                                AND ativo2.in_participacao in ('A')
+                                AND ativo2.in_parte_principal = 'S'
+                                AND ativo2.nr_ordem = 2
+                        )
+                  LEFT JOIN tb_processo_parte passivo2 ON 
+                        (passivo2.id_processo_trf = pe.id_processo
+                                AND passivo2.in_participacao in ('P')
+                                AND passivo2.in_parte_principal = 'S'
+                                AND passivo2.nr_ordem = 2
+                        )              
+                WHERE
                 ((:CARGO is null) or (position(:CARGO in ojc.ds_cargo) > 0))
                 and ((:ID_FASE_PROCESSUAL is null) or (:ID_FASE_PROCESSUAL = pe.id_agrupamento_fase))
                 and ((pe.dta_audiencia BETWEEN to_timestamp(:DATA_INICIAL, 'yyyy-MM-dd' )
