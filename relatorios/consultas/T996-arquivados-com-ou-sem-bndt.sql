@@ -1,3 +1,21 @@
+-- #Título
+-- Arquivados com ou sem registro no BNDT
+
+-- #Código
+-- T996
+
+-- #Nome no menu
+-- Arquivados com ou sem registro no BNDT
+
+-- #Menu superior
+-- Vara
+
+-- #Glossário
+-- Lista os processos arquivados (arquivo definitivo ou provisório) com ou sem registro no BNDT. Não são considerados os registros excluídos do BNDT.
+-- <br />
+-- No campo tipo de arquivamento deixa só definitivo e provisório
+-- Registro no BNDT não precisa interrogação
+
 SELECT
     'http://processo='||bndt.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_DETALHES_PROCESSO' as " ",
     'http://processo='||bndt.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_TAREFA&texto='||bndt.nr_processo as "Processo",
@@ -33,13 +51,10 @@ FROM
                           SELECT 1 FROM tb_debito_trabalhista dt
                                     INNER JOIN tb_processo_parte pp ON
                                         (dt.id_processo_parte = pp.id_processo_parte)
---                                     join tb_dbto_trblhsta_historico dth on
---                                         (dth.id_processo_parte = pp.id_processo_parte)
                           WHERE
                               proc.id_processo = pp.id_processo_trf
                             -- não considera os débitos excluídos
                             AND dt.id_situacao_debito_trabalhista <> 4
---                             and dth.cd_erro_bndt is null
                       )
                   WHEN (0 = :REGISTRO_BNDT)
                       THEN
@@ -47,13 +62,10 @@ FROM
                               SELECT 1 FROM tb_debito_trabalhista dt
                                                 INNER JOIN tb_processo_parte pp ON
                                   (dt.id_processo_parte = pp.id_processo_parte)
---                                                 join tb_dbto_trblhsta_historico dth on
---                                   (dth.id_processo_parte = pp.id_processo_parte)
                               WHERE
                                       proc.id_processo = pp.id_processo_trf
                                 -- não considera os débitos excluídos
                                 AND dt.id_situacao_debito_trabalhista <> 4
---                                 and dth.cd_erro_bndt is null
                           )
                  ELSE FALSE
                  END
