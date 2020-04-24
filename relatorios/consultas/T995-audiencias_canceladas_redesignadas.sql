@@ -60,8 +60,9 @@ with audiencias_canceladas_remarcadas as (
                                         )
                          ) || ')'
                         ELSE ''
-                   END
-                || ' X ' ||
+                   END AS "Polo Ativo"
+                   ,
+                -- || ' X ' ||
                 (SELECT trim(ul1.ds_nome) FROM tb_usuario_login ul1 WHERE passivo1.id_pessoa = ul1.id_usuario) 
                 || CASE
                         WHEN (passivo2.id_processo_trf IS NOT NULL) THEN ' E OUTROS (' ||
@@ -74,22 +75,22 @@ with audiencias_canceladas_remarcadas as (
                          ) || ')'
                         ELSE ''
                    END
-                 AS "Partes",
-                -- cargo.cd_cargo as "Cargo",
-                ojc.ds_cargo as "Cargo",
-                to_char(pe.dta_audiencia,'dd/MM/yyyy HH24:mi:ss') as "Data da última audiência",
+                 AS "Polo Passivo",
+                cargo.cd_cargo as "Cargo",
+                -- ojc.ds_cargo as "Cargo",
+                to_char(pe.dta_audiencia,'dd/MM/yyyy HH24:mi:ss') as "Data da designação anterior",
                 to_char(pe.dt_cancelamento,'dd/MM/yyyy HH24:mi:ss') as "Data do cancelamento",
                 to_char(pe.dt_proxima_audiencia,'dd/MM/yyyy HH24:mi:ss') as "Data Próxima audiência",
                 pe.ds_tipo_audiencia as "Tipo da Audiência",
                 pe.cd_status_audiencia as "Status",
-                fase.nm_agrupamento_fase as "Fase",
-                pe.name_ as "Tarefa Atual"
+                substring(UPPER(TRIM(fase.nm_agrupamento_fase)) FROM 0 FOR 4) || ' / ' || -- as "Fase",
+                pe.name_ as "Fase / Tarefa Atual"
                 
                 from audiencias_canceladas_remarcadas pe
                 inner join tb_orgao_julgador oje on (pe.id_orgao_julgador = oje.id_orgao_julgador)
                 inner join tb_agrupamento_fase fase on (pe.id_agrupamento_fase = fase.id_agrupamento_fase)
                 inner join tb_orgao_julgador_cargo ojc ON (pe.id_orgao_julgador_cargo = ojc.id_orgao_julgador_cargo)
-                -- inner join tb_cargo cargo ON (ojc.id_cargo = cargo.id_cargo)
+                inner join tb_cargo cargo ON (ojc.id_cargo = cargo.id_cargo)
                 INNER JOIN tb_processo_parte ativo1 ON 
                         (ativo1.id_processo_trf = pe.id_processo
                                 AND ativo1.in_participacao in ('A')
