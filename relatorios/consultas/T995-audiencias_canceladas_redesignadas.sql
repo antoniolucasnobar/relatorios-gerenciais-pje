@@ -48,7 +48,33 @@ with audiencias_canceladas_remarcadas as (
                 SELECT
                 'http://processo='||pe.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_DETALHES_PROCESSO' as " ",
                 'http://processo='||pe.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_TAREFA&texto='||pe.nr_processo as "Processo",
-                fase.nm_agrupamento_fase as "Fase",
+
+                (SELECT trim(ul1.ds_nome) FROM tb_usuario_login ul1 WHERE ativo1.id_pessoa = ul1.id_usuario) 
+                || CASE
+                        WHEN (ativo2.id_pessoa IS NOT NULL) THEN ' E OUTROS (' ||
+                         (SELECT COUNT(pp.id_processo_trf) FROM tb_processo_parte pp
+                                WHERE (pp.id_processo_trf = pe.id_processo
+                                        AND pp.in_participacao in ('A')
+                                        AND pp.in_parte_principal = 'S'
+                                        AND pp.in_situacao = 'A'
+                                        )
+                         ) || ')'
+                        ELSE ''
+                   END
+                || ' X ' ||
+                (SELECT trim(ul1.ds_nome) FROM tb_usuario_login ul1 WHERE passivo1.id_pessoa = ul1.id_usuario) 
+                || CASE
+                        WHEN (passivo2.id_processo_trf IS NOT NULL) THEN ' E OUTROS (' ||
+                         (SELECT COUNT(pp.id_processo_trf) FROM tb_processo_parte pp
+                                WHERE (pp.id_processo_trf = pe.id_processo
+                                        AND pp.in_participacao in ('P')
+                                        AND pp.in_parte_principal = 'S'
+                                        AND pp.in_situacao = 'A'
+                                       )
+                         ) || ')'
+                        ELSE ''
+                   END
+                 AS "Partes",
                 -- cargo.cd_cargo as "Cargo",
                 ojc.ds_cargo as "Cargo",
                 to_char(pe.dta_audiencia,'dd/MM/yyyy HH24:mi:ss') as "Data da última audiência",
@@ -56,32 +82,8 @@ with audiencias_canceladas_remarcadas as (
                 to_char(pe.dt_proxima_audiencia,'dd/MM/yyyy HH24:mi:ss') as "Data Próxima audiência",
                 pe.ds_tipo_audiencia as "Tipo da Audiência",
                 pe.cd_status_audiencia as "Status",
+                fase.nm_agrupamento_fase as "Fase",
                 pe.name_ as "Tarefa Atual"
-                ,
-
-                -- (SELECT trim(ul1.ds_nome) 
-                --   FROM tb_processo_parte ativo1
-                --   join tb_usuario_login ul1 on ativo1.id_pessoa = ul1.id_usuario
-                --   WHERE ativo1.id_processo_trf = pe.id_processo
-                --         AND ativo1.in_participacao in ('A')
-                --         AND ativo1.in_parte_principal = 'S'
-                --         AND ativo1.nr_ordem = 1
-                --  ) AS "Polo ativo"
-                (SELECT trim(ul1.ds_nome) FROM tb_usuario_login ul1 WHERE ativo1.id_pessoa = ul1.id_usuario) 
-                || CASE
-                        WHEN (ativo2.id_pessoa IS NOT NULL) THEN ' E OUTROS'
-                        ELSE ''
-                   END
-                --   (SELECT ' E OUTROS' FROM tb_usuario_login ul1 WHERE ativo2.id_pessoa = ul1.id_usuario) 
-                || ' X ' ||
-                (SELECT trim(ul1.ds_nome) FROM tb_usuario_login ul1 WHERE passivo1.id_pessoa = ul1.id_usuario) 
-                || CASE
-                        WHEN (ativo2.id_pessoa IS NOT NULL) THEN ' E OUTROS'
-                        ELSE ''
-                   END
-                -- || (SELECT ' E OUTROS' FROM tb_usuario_login ul1 WHERE passivo2.id_pessoa = ul1.id_usuario) 
-
-                 AS "Partes"
                 
                 from audiencias_canceladas_remarcadas pe
                 inner join tb_orgao_julgador oje on (pe.id_orgao_julgador = oje.id_orgao_julgador)
@@ -92,24 +94,28 @@ with audiencias_canceladas_remarcadas as (
                         (ativo1.id_processo_trf = pe.id_processo
                                 AND ativo1.in_participacao in ('A')
                                 AND ativo1.in_parte_principal = 'S'
+                                AND ativo1.in_situacao = 'A'
                                 AND ativo1.nr_ordem = 1
                         )
                 INNER JOIN tb_processo_parte passivo1 ON 
                         (passivo1.id_processo_trf = pe.id_processo
                                 AND passivo1.in_participacao in ('P')
                                 AND passivo1.in_parte_principal = 'S'
-                                AND passivo1.nr_ordem = 1
+                                AND passivo1.in_situacao = 'A'
+                               AND passivo1.nr_ordem = 1
                         )
                  LEFT JOIN tb_processo_parte ativo2 ON 
                         (ativo2.id_processo_trf = pe.id_processo
                                 AND ativo2.in_participacao in ('A')
                                 AND ativo2.in_parte_principal = 'S'
+                                AND ativo2.in_situacao = 'A'
                                 AND ativo2.nr_ordem = 2
                         )
                   LEFT JOIN tb_processo_parte passivo2 ON 
                         (passivo2.id_processo_trf = pe.id_processo
                                 AND passivo2.in_participacao in ('P')
                                 AND passivo2.in_parte_principal = 'S'
+                                AND passivo2.in_situacao = 'A'
                                 AND passivo2.nr_ordem = 2
                         )              
                 WHERE
