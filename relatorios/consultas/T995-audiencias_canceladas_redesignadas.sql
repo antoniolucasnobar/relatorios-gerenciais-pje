@@ -3,7 +3,9 @@ with audiencias_canceladas_remarcadas as (
                 p.id_processo,
                 p.nr_processo,
                 p.id_agrupamento_fase,
-                pa.dt_cancelamento,
+                case when pa.cd_status_audiencia = 'C' then pa.dt_cancelamento
+                    when pa.cd_status_audiencia = 'R' then pa.dt_remarcacao
+                   end as dt_cancelamento_ou_remarcacao,
                 case when pa.cd_status_audiencia = 'C' then 'Cancelada'
                     when pa.cd_status_audiencia = 'R' then 'Redesignada'
                     else pa.cd_status_audiencia
@@ -15,8 +17,11 @@ with audiencias_canceladas_remarcadas as (
                    SELECT pa2.dt_inicio
                    FROM tb_processo_audiencia pa2
                    WHERE pa2.id_processo_trf = ptrf.id_processo_trf
-                     AND pa2.cd_status_audiencia = 'M' and pa2.in_ativo = 'S'
-                     AND pa2.dt_inicio > pa.dt_inicio
+                --      AND date_trunc('minute', pa2.dt_marcacao) = date_trunc('minute', pa.dt_remarcacao)
+                     AND pa2.cd_status_audiencia = 'M' 
+                     and pa2.in_ativo = 'S'
+                --      LIMIT 1
+                --      AND pa2.dt_inicio > pa.dt_inicio
                 ) END as dt_proxima_audiencia,
                 sala.id_orgao_julgador  as id_orgao_julgador,
                 ta.ds_tipo_audiencia,
@@ -35,20 +40,46 @@ with audiencias_canceladas_remarcadas as (
                 --Processo não deve estar arquivado RN06 e nem na instância superior RN10
                 and ti.name_ not in ('Arquivo', 'Arquivo provisório','Arquivo definitivo', 'Arquivamento Provisório', 'Arquivamento Definitivo', 'Aguardando apreciação da instância superior',
                         'Aguardando apreciação pela instância superior')
+                -- Não trazer audiencias se alguma outra audiencia foi realizada no mesmo horário ou posterior
                 AND NOT EXISTS (
                         SELECT 1
                         FROM tb_processo_audiencia pa2
                         WHERE pa2.id_processo_trf = ptrf.id_processo_trf
-                        AND pa2.cd_status_audiencia  IN ('C','R','F') and pa2.in_ativo = 'S'
-                        AND (pa2.dt_inicio > pa.dt_inicio OR (pa2.dt_inicio = pa.dt_inicio AND pa2.dt_cancelamento > pa.dt_cancelamento))
+                        AND pa2.cd_status_audiencia  IN ('F') and pa2.in_ativo = 'S'
+                        AND (pa2.dt_inicio >= pa.dt_inicio)
+                )
+                AND NOT EXISTS (
+                        SELECT 1
+                        FROM tb_processo_audiencia pa2
+                        WHERE pa2.id_processo_trf = ptrf.id_processo_trf
+                        AND pa2.cd_status_audiencia  IN ('C','R') and pa2.in_ativo = 'S'
+                        AND (pa2.dt_inicio > pa.dt_inicio 
+                                OR (pa2.dt_inicio = pa.dt_inicio AND (
+                                        pa2.dt_cancelamento > pa.dt_cancelamento
+                                        OR pa2.dt_cancelamento > pa.dt_remarcacao
+                                )
+                        ))
+                )
+                AND (
+                CASE
+                    WHEN pa.cd_status_audiencia = 'R' THEN EXISTS (
+                                SELECT 1
+                                FROM tb_processo_audiencia pa2
+                                WHERE pa2.id_processo_trf = ptrf.id_processo_trf
+                                        AND pa2.cd_status_audiencia = 'M' 
+                                        AND pa2.in_ativo = 'S'
+                        )
+                    else TRUE
+                   end                         
                 )
                 AND sala.id_orgao_julgador = coalesce(:ORGAO_JULGADOR_TODOS,sala.id_orgao_julgador) --Incluir o parâmetro de filtro OJ
                 and ((:ID_TIPO_AUDIENCIA  is null) or (:ID_TIPO_AUDIENCIA  = ta.id_tipo_audiencia))
+                AND pa.cd_status_audiencia  = coalesce(:STATUS_AUD_CANCELADA_REDESIGNADA, pa.cd_status_audiencia)
                 )
                 SELECT
                 'http://processo='||pe.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_DETALHES_PROCESSO' as " ",
                 'http://processo='||pe.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_TAREFA&texto='||pe.nr_processo as "Processo",
-
+                oje.ds_sigla AS "Unidade",
                 (SELECT trim(ul1.ds_nome) FROM tb_usuario_login ul1 WHERE ativo1.id_pessoa = ul1.id_usuario) 
                 || CASE
                         WHEN (ativo2.id_pessoa IS NOT NULL) THEN ' E OUTROS (' ||
@@ -79,13 +110,12 @@ with audiencias_canceladas_remarcadas as (
                 cargo.cd_cargo as "Cargo",
                 -- ojc.ds_cargo as "Cargo",
                 to_char(pe.dta_audiencia,'dd/MM/yyyy HH24:mi:ss') as "Data da designação anterior",
-                to_char(pe.dt_cancelamento,'dd/MM/yyyy HH24:mi:ss') as "Data do cancelamento",
+                to_char(pe.dt_cancelamento_ou_remarcacao,'dd/MM/yyyy HH24:mi:ss') as "Data do Cancelamento ou Redesignação",
                 to_char(pe.dt_proxima_audiencia,'dd/MM/yyyy HH24:mi:ss') as "Data Próxima audiência",
                 pe.ds_tipo_audiencia as "Tipo da Audiência",
                 pe.cd_status_audiencia as "Status",
                 substring(UPPER(TRIM(fase.nm_agrupamento_fase)) FROM 0 FOR 4) || ' / ' || -- as "Fase",
-                pe.name_ as "Fase / Tarefa Atual"
-                
+                pe.name_ as "Fase / Tarefa Atual"                
                 from audiencias_canceladas_remarcadas pe
                 inner join tb_orgao_julgador oje on (pe.id_orgao_julgador = oje.id_orgao_julgador)
                 inner join tb_agrupamento_fase fase on (pe.id_agrupamento_fase = fase.id_agrupamento_fase)
@@ -169,4 +199,4 @@ with audiencias_canceladas_remarcadas as (
                                 and pe3.id_processo_evento_excludente IS NULL
                         )
                 )
-                order by 5,2
+                order by pe.dta_audiencia
