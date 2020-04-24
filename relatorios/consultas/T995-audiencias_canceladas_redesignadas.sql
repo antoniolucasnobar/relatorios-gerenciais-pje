@@ -124,6 +124,20 @@ with audiencias_canceladas_remarcadas as (
                 and ((:ID_FASE_PROCESSUAL is null) or (:ID_FASE_PROCESSUAL = pe.id_agrupamento_fase))
                 and ((pe.dta_audiencia BETWEEN to_timestamp(:DATA_INICIAL, 'yyyy-MM-dd' )
                            and (to_timestamp(:DATA_FINAL, 'yyyy-MM-dd' ) + interval '24 hours')))
+                AND ((:NOME_PARTE is null) or 
+                        ( 
+                          (:NOME_PARTE is NOT null) AND
+                          EXISTS(
+                                SELECT 1 FROM tb_processo_parte pp
+                                INNER JOIN tb_usuario_login usu ON (usu.id_usuario = pp.id_pessoa)
+                                WHERE pp.id_processo_trf = pe.id_processo
+                                AND pp.in_parte_principal = 'S'
+                                AND pp.in_situacao = 'A'
+                                AND pp.in_participacao in ('A','P')
+                                AND usu.ds_nome_consulta LIKE '%' || UPPER(:NOME_PARTE) || '%'
+                          )  
+                        )
+                ) 
                 --O processo não pode estar concluso para julgamento RN03
                 and not exists (
                 select 1
