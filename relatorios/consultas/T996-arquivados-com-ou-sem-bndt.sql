@@ -15,29 +15,34 @@
 -- <br />
 -- No campo tipo de arquivamento deixa só definitivo e provisório
 -- Registro no BNDT não precisa interrogação
-
 SELECT
-    'http://processo='||bndt.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_DETALHES_PROCESSO' as " ",
-    'http://processo='||bndt.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_TAREFA&texto='||bndt.nr_processo as "Processo",
-    bndt.ds_orgao_julgador as "Órgão Julgador",
+    'http://processo='||proc.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_DETALHES_PROCESSO' as " ",
+    'http://processo='||proc.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_TAREFA&texto='||proc.nr_processo as "Processo",
+    oj.ds_orgao_julgador as "Órgão Julgador",
+
     (
-        select name_ from
-                jbpm_taskinstance
+        select prev.dt_atualizacao
+        from
+            tb_processo_evento prev
+                join
+            tb_evento_processual ev on (prev.id_evento = ev.id_evento_processual)
         where
-                procinst_ in (select pi.id_proc_inst from tb_processo_instance pi where pi.id_processo = bndt.id_processo)
-                and end_ is null and isopen_ = 'true'
-        order by start_ desc
-        limit 1
-    ) as "Tarefa"
-FROM
-     (SELECT
-          proc.id_processo,
-          proc.nr_processo,
-          oj.ds_orgao_julgador
+            -- 246 - definitvamente, 245 -- provisoriamente
+            -- 893 - desarquivados os autos
+        ev.cd_evento = :TIPO_ARQUIVAMENTO
+        and prev.id_processo_evento_excludente is null
+        and prev.id_processo = proc.id_processo
+        ORDER BY prev.dt_atualizacao DESC
+        LIMIT 1
+    ) AS "Data do Arquivamento",
+
+    ptar.nm_tarefa as "Tarefa"
+
       FROM
           tb_processo proc
           join tb_processo_trf ptrf on proc.id_processo = ptrf.id_processo_trf
           join tb_orgao_julgador oj on (oj.id_orgao_julgador = ptrf.id_orgao_julgador)
+          join tb_processo_tarefa ptar on (proc.id_processo = ptar.id_processo_trf)
       WHERE
           proc.id_agrupamento_fase = 5
       -- A partir daqui, filtros possíveis e opcionais
@@ -87,5 +92,25 @@ FROM
               ORDER BY prev.dt_atualizacao DESC
               LIMIT 1
           )
-     ) bndt
-    order by bndt.nr_processo
+        -- filtro de data
+          AND EXISTS
+          
+          ( SELECT 1 FROM (
+              select prev.dt_atualizacao
+              from
+                  tb_processo_evento prev
+                      join
+                  tb_evento_processual ev on (prev.id_evento = ev.id_evento_processual)
+              where
+                    -- 246 - definitvamente, 245 -- provisoriamente
+                    -- 893 - desarquivados os autos
+                ev.cd_evento = :TIPO_ARQUIVAMENTO 
+                and prev.id_processo_evento_excludente is null
+                and prev.id_processo = proc.id_processo
+              ORDER BY prev.dt_atualizacao DESC
+              LIMIT 1
+            ) dataUltimoMovimento
+            WHERE dataUltimoMovimento.dt_atualizacao :: date between (:DATA_INICIAL)::date and (:DATA_FINAL)::date 
+          )         
+    
+    order by proc.nr_processo
