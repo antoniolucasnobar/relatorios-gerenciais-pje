@@ -14,10 +14,10 @@ from tb_processo p
     INNER JOIN tb_classe_judicial cj ON (cj.id_classe_judicial = ptrf.id_classe_judicial)
 where p.id_agrupamento_fase <> 5
     and pe.dt_atualizacao:: date between (:DATA_INICIAL)::date and (:DATA_FINAL)::date
-    and ptrf.id_orgao_julgador = coalesce(:ORGAO_JULGADOR_TODOS, ptrf.id_orgao_julgador)
+    and oj.id_orgao_julgador = coalesce(:ORGAO_JULGADOR_TODOS, oj.id_orgao_julgador)
     AND fase.id_agrupamento_fase = coalesce(:ID_FASE_PROCESSUAL, fase.id_agrupamento_fase)
 	and pe.id_evento = 50049
-    and pe.id_processo_evento_excludente is null
+    -- and pe.id_processo_evento_excludente is null -- retirado por divergencia com o SERP
 	and 
 		(pe.ds_texto_final_interno ilike 'Prejudicado o incidente Impugnação à Sentença de Liquidação%' or 
 		pe.ds_texto_final_interno ilike 'Prejudicado o incidente Embargos à Execução%' or 
