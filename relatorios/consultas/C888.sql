@@ -3,7 +3,7 @@ select
                       'http://processo='||p.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_TAREFA&texto='||p.nr_processo as "Processo",
                       oj.ds_orgao_julgador as "Vara",
                       t.ds_tarefa as "Tarefa",
-                fase.nm_agrupamento_fase as "Fase",
+                      fase.nm_agrupamento_fase as "Fase",
                       --RN02
                       date_part('day', current_date - coalesce(ti.start_, ti.create_))::integer as "Dias"
                    from
@@ -48,4 +48,5 @@ select
                       )
                       AND oj.id_orgao_julgador = coalesce(:ORGAO_JULGADOR_TODOS,oj.id_orgao_julgador)
                       AND fase.id_agrupamento_fase = coalesce(:ID_FASE_PROCESSUAL, fase.id_agrupamento_fase)
+                      AND fase.id_agrupamento_fase != 5
                       and date_part('day', current_date - coalesce(ti.start_, ti.create_))::integer >= coalesce(:DIAS,date_part('day', current_date - coalesce(ti.start_, ti.create_))::integer)
