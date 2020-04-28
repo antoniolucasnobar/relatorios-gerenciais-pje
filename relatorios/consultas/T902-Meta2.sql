@@ -27,47 +27,48 @@ WHERE
     oj.id_orgao_julgador = coalesce(:ORGAO_JULGADOR_TODOS, oj.id_orgao_julgador)
     -- regra 1.a - antes de 2019
     AND pe.dt_atualizacao < '01/01/2019'::date
-    -- regra 1.b - sem movimento de julgamento
-    AND (NOT EXISTS 
-        (
-            SELECT pe.id_processo FROM tb_processo_evento pe 
-            INNER JOIN tb_evento_processual ev ON 
-                (pe.id_evento = ev.id_evento_processual)
-            WHERE p.id_processo = pe.id_processo
-            AND ev.cd_evento IN 
-                ('941', '442', '450', '452', '444', 
-                '471', '446', '448', '455', '466', 
-                '11795', '220', '50103', '221', '219', 
-                '472', '473', '458', '461', '459', '465', 
-                '462', '463', '457', '460', '464', '454')    
-        )
-        -- regra 1.b EXCECAO: existe mov. julgamento, mas foi reformada ou anulada
-        OR (NOT EXISTS 
-            (
-                SELECT pe1.id_processo FROM tb_processo_evento pe1
+    AND (CASE
+        -- regra 1.b - sem movimento de julgamento
+        WHEN 
+            NOT EXISTS(
+                SELECT pe.id_processo FROM tb_processo_evento pe 
                 INNER JOIN tb_evento_processual ev ON 
-                    (pe1.id_evento = ev.id_evento_processual)
-                WHERE p.id_processo = pe1.id_processo
+                    (pe.id_evento = ev.id_evento_processual)
+                WHERE p.id_processo = pe.id_processo
                 AND ev.cd_evento IN 
                     ('941', '442', '450', '452', '444', 
                     '471', '446', '448', '455', '466', 
                     '11795', '220', '50103', '221', '219', 
                     '472', '473', '458', '461', '459', '465', 
-                    '462', '463', '457', '460', '464', '454')
-                AND EXISTS (
+                    '462', '463', '457', '460', '464', '454')    
+            ) 
+            THEN TRUE
+            -- regra 1.b EXCECAO: existe mov. julgamento, mas foi reformada ou anulada posteriormente
+            ELSE 
+                EXISTS (
                     SELECT pe2.id_processo FROM tb_processo_evento pe2
                     INNER JOIN tb_evento_processual ev ON 
                         (pe2.id_evento = ev.id_evento_processual)
                     WHERE p.id_processo = pe2.id_processo
                     AND ev.cd_evento IN ('132')
-                    AND pe2.dt_atualizacao > pe1.dt_atualizacao
                     AND (pe2.ds_texto_final_interno ilike '%para novo julgamento (por reforma da decisão pela instância superior)'
                         OR pe2.ds_texto_final_interno ilike '%para novo julgamento (por anulação da decisão pela instância superior)'
                     ) 
+                    AND pe2.dt_atualizacao > 
+                        (
+                            SELECT MAX(pe.dt_atualizacao) FROM tb_processo_evento pe 
+                            INNER JOIN tb_evento_processual ev ON 
+                                (pe.id_evento = ev.id_evento_processual)
+                            WHERE p.id_processo = pe.id_processo
+                            AND ev.cd_evento IN 
+                                ('941', '442', '450', '452', '444', 
+                                '471', '446', '448', '455', '466', 
+                                '11795', '220', '50103', '221', '219', 
+                                '472', '473', '458', '461', '459', '465', 
+                                '462', '463', '457', '460', '464', '454')    
+                        ) 
                 )
-                
-            )
-        )
+            END
     )
     -- regra 1.c - Não tem movimento de sobrestamento/suspensao,
     AND (NOT EXISTS 
