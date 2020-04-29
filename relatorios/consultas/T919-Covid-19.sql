@@ -1,7 +1,9 @@
   SELECT 'http://processo='||p.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_DETALHES_PROCESSO' as " ",
         'http://processo='||p.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_TAREFA&texto='||cj.ds_classe_judicial_sigla||' '||p.nr_processo as "Processo",
-    ptrf.dt_autuacao AS "Data da Autuação",
+    to_char(ptrf.dt_autuacao,'dd/MM/yyyy') as "Data da Autuação",
     REPLACE(oj.ds_orgao_julgador, 'VARA DO TRABALHO', 'VT' ) as "Unidade",
+    cargo.cd_cargo as "Cargo",
+
     (SELECT trim(ul1.ds_nome) FROM tb_usuario_login ul1 WHERE ativo1.id_pessoa = ul1.id_usuario) 
     || CASE
         WHEN (ativo2.id_pessoa IS NOT NULL) THEN ' E OUTROS (' ||
@@ -37,6 +39,8 @@ FROM tb_processo p
   INNER JOIN tb_classe_judicial cj ON (cj.id_classe_judicial = ptrf.id_classe_judicial)
   inner join tb_agrupamento_fase fase on (p.id_agrupamento_fase = fase.id_agrupamento_fase)
   INNER join tb_orgao_julgador oj on (ptrf.id_orgao_julgador = oj.id_orgao_julgador)
+inner join tb_orgao_julgador_cargo ojc ON (ptrf.id_orgao_julgador_cargo = ojc.id_orgao_julgador_cargo)
+inner join tb_cargo cargo ON (ojc.id_cargo = cargo.id_cargo)
 --   INNER JOIN tb_processo_assunto pass ON (pass.id_processo_trf = p.id_processo)
 --   INNER JOIN tb_assunto_trf assunto ON (assunto.in_ativo = 'S' 
 --     AND assunto.id_assunto_trf = pass.id_assunto_trf)
@@ -70,6 +74,8 @@ FROM tb_processo p
                         )              
 where 
     oj.id_orgao_julgador = coalesce(:ORGAO_JULGADOR_TODOS, oj.id_orgao_julgador)
+    AND ((:CARGO is null) or (position(:CARGO in ojc.ds_cargo) > 0))
+    AND fase.id_agrupamento_fase = coalesce(:ID_FASE_PROCESSUAL, fase.id_agrupamento_fase)
     AND fase.id_agrupamento_fase != 5
                     and (ptrf.dt_autuacao BETWEEN to_timestamp(:DATA_INICIAL, 'yyyy-MM-dd' )
                            and (to_timestamp(:DATA_FINAL, 'yyyy-MM-dd' ) + interval '24 hours'))
