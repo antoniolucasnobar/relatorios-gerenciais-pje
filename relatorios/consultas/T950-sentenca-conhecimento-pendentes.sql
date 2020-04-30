@@ -42,7 +42,10 @@ FROM  (
                     '471', '446', '448', '455', '466', 
                     '11795', '220', '50103', '221', '219', 
                     '472', '473', '458', '461', '459', '465', 
-                    '462', '463', '457', '460', '464', '454')
+                    '462', '463', '457', '460', '464', '454'
+                    -- o movimento abaixo nao deve ser considerado para proferidas
+                    ,'11022' -- Convertido o julgamento em dilig_ncia 
+                    )
                 OR
                     (
                         ev.cd_evento = '51' AND
