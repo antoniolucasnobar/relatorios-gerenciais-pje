@@ -1,3 +1,4 @@
+ -- R136909  - falta glossario e titulo
   SELECT 'http://processo='||p.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_DETALHES_PROCESSO' as " ",
         'http://processo='||p.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_TAREFA&texto='||cj.ds_classe_judicial_sigla||' '||p.nr_processo as "Processo",
     to_char(ptrf.dt_autuacao,'dd/MM/yyyy') as "Data da Autuação",
@@ -30,9 +31,17 @@
             ) || ')'
         ELSE ''
     END AS "Polo Passivo",
-
-  fase.nm_agrupamento_fase as "Fase",
-  ptar.nm_tarefa as "Tarefa"
+    (SELECT ta.ds_tipo_audiencia || ' - ' || pa.dt_inicio
+        FROM tb_processo_audiencia pa
+        join tb_tipo_audiencia ta using (id_tipo_audiencia)
+        WHERE pa.id_processo_trf = ptrf.id_processo_trf
+            AND pa.cd_status_audiencia = 'F' 
+            and pa.in_ativo = 'S'
+        ORDER BY pa.dt_inicio DESC
+        LIMIT 1        
+    ) AS "Última Audiência",
+substring(UPPER(TRIM(fase.nm_agrupamento_fase)) FROM 0 FOR 4) || ' / ' || 
+                ptar.nm_tarefa as "Fase / Tarefa Atual"  
 FROM tb_processo p
   join tb_processo_trf ptrf on p.id_processo = ptrf.id_processo_trf
   join tb_processo_tarefa ptar on (p.id_processo = ptar.id_processo_trf)
