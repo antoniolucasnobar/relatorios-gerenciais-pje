@@ -31,7 +31,7 @@
             ) || ')'
         ELSE ''
     END AS "Polo Passivo",
-    (SELECT ta.ds_tipo_audiencia || ' - ' || pa.dt_inicio
+    (SELECT ta.ds_tipo_audiencia || ' - ' || to_char(pa.dt_inicio, 'dd/MM/yy HH24:mi')
         FROM tb_processo_audiencia pa
         join tb_tipo_audiencia ta using (id_tipo_audiencia)
         WHERE pa.id_processo_trf = ptrf.id_processo_trf
