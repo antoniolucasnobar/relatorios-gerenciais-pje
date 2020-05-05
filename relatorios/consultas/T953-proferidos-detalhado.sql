@@ -36,6 +36,7 @@ WITH proferidas AS (
                         select 1 from tb_processo_evento extinta_execucao
                         where extinta_execucao.id_processo = doc.id_processo and 
                         date(doc.dt_juntada) = date(extinta_execucao.dt_atualizacao)
+                        AND extinta_execucao.id_evento = 196
  				)
 )
 SELECT 'http://processo='||p.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_DETALHES_PROCESSO' as " ",
