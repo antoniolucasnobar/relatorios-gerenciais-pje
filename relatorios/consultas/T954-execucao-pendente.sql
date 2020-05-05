@@ -1,6 +1,32 @@
 -- R136877 - Relatório SAO - INCIDENTES DE EXECUÇÃO PENDENTES
--- Conclusos os autos para julgamento Proferir sentença a MARCELE CRUZ LANOT ANTONIAZZI
--- codigo 51
+-- REGRAS:
+-- Ter um concluso para:
+--  - acao incidental
+--  - Embargos a Execucao
+--  - Impugnacao a Sentenca de Liquidacao
+--
+-- Antes do concluso, ter um documento do tipo:
+--  - Embargos a Execucao
+--  - Impugnacao a Sentenca de Liquidacao
+--
+-- Estar na fase de Execução
+-- 
+-- Existir um movimento dentre os seguintes, após o concluso
+-- 50086 - Encerrada a conclusão  
+-- 219   - Julgado(s) procedente(s) o(s) pedido(s) (#{classe processual}/ #{nome do incidente}) de #{nome da parte}
+-- 221   - Julgado(s) procedente(s) em parte o(s) pedido(s) (#{classe processual} / #{nome do incidente}) de #{nome da parte}  
+-- 220   - Julgado(s) improcedente(s) o(s) pedido(s) (#{classe processual} / #{nome do incidente}) de #{nome da parte}
+-- 50013 - Julgado(s) liminarmente improcedente(s) o(s) pedido(s) (#{classe processual} / #{nome do incidente}) de #{nome da parte}  
+-- 50050 - Extinto com resolução do mérito o incidente #{nome do incidente} de #{nome da parte}
+-- 50048 - Extinto sem resolução do mérito o incidente #{nome do incidente} de #{nome da parte}
+-- 50087 - Baixado o incidente/ recurso (#{nome do incidente} / #{nome do recurso}) sem decisão, onde nome do recurso deve corresponder a Embargos à Execução ou Impugnação à Sentença de Liquidação 
+-- 50049 - Prejudicado o incidente #{nome do incidente} de #{nome da parte}
+--
+-- No caso do 50087, faz o batimento entre o tipo de concluso e o movimento (exceto par o incidental)
+-- No caso do 50049, verifica se foi prejudicado incidente de:
+--  - Embargos a Execucao
+--  - Impugnacao a Sentenca de Liquidacao
+--
 
 WITH tipos_documento AS (
     --16	Embargos à Execução	S			7143
