@@ -2,7 +2,15 @@
 -- Conclusos os autos para julgamento Proferir sentença a MARCELE CRUZ LANOT ANTONIAZZI
 -- codigo 51
 
-WITH pendentes_execucao AS (
+WITH tipos_documento AS (
+    --16	Embargos à Execução	S			7143
+    --32	Impugnação à Sentença de Liquidação	S			53
+    select id_tipo_processo_documento 
+        from tb_tipo_processo_documento 
+    where cd_documento IN ('53', '7143') 
+        and in_ativo = 'S'
+) ,
+pendentes_execucao AS (
 SELECT  concluso.id_pessoa_magistrado, 
         pen.id_processo_evento,
         pen.dt_atualizacao AS pendente_desde,
@@ -28,13 +36,26 @@ SELECT  concluso.id_pessoa_magistrado,
         concluso.id_pessoa_magistrado  = coalesce(:MAGISTRADO, concluso.id_pessoa_magistrado)
         -- concluso.in_diligencia != 'S'
         AND p.id_agrupamento_fase = 4 -- somente execucao --//TODO: confirmar
+        AND 
+        
+        (   EXISTS(
+                SELECT 1 FROM tb_processo_documento doc WHERE 
+                doc.id_processo = pen.id_processo
+                AND doc.dt_juntada < pen.dt_atualizacao
+                AND doc.id_tipo_processo_documento IN (SELECT id_tipo_processo_documento FROM tipos_documento)
+
+            )
+        )
         AND NOT EXISTS(
             SELECT 1 FROM tb_processo_evento pe 
             INNER JOIN tb_evento_processual ev ON 
                 (pe.id_evento = ev.id_evento_processual)
             WHERE pen.id_processo = pe.id_processo
             AND pe.id_processo_evento_excludente IS NULL
-            AND pe.dt_atualizacao > pen.dt_atualizacao
+            AND (pe.dt_atualizacao > pen.dt_atualizacao
+                    -- OR
+                    -- pe.dt_atualizacao BETWEEN 
+                )
             AND (
                 (
                     -- eh movimento de julgamento
@@ -52,8 +73,13 @@ SELECT  concluso.id_pessoa_magistrado,
                     (
                         --nome do complemento bate com o da conclusao
                         ev.cd_evento = '50087' AND
-                        (pen.ds_texto_final_interno ilike '%Impugnação à Sentença de Liquidação%' and pe.ds_texto_final_interno ilike '%Impugnação à Sentença de Liquidação%') or 
-                        (pen.ds_texto_final_interno ilike '%Embargos à Execução%' and pe.ds_texto_final_interno ilike '%Embargos à Execução%')
+                        (pen.ds_texto_final_interno ilike '%Impugnação à Sentença de Liquidação%' and pe.ds_texto_final_interno ilike '%Impugnação à Sentença de Liquidação%')
+                        OR (pen.ds_texto_final_interno ilike '%Embargos à Execução%' and pe.ds_texto_final_interno ilike '%Embargos à Execução%')
+                        OR (pen.ds_texto_final_interno ilike 'Conclusos os autos para julgamento da ação incidental na execu__o%' 
+                            and (pe.ds_texto_final_interno ilike '%Embargos à Execução%' 
+                                OR pe.ds_texto_final_interno ilike '%Impugnação à Sentença de Liquidação%'
+                            )
+                        )
                     )
                     -- sem movimento de reforma/anulacao posterior
                     -- AND 
