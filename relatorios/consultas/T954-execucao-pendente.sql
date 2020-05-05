@@ -32,20 +32,17 @@ SELECT  concluso.id_pessoa_magistrado,
                 )
         )
     INNER JOIN tb_processo p on (p.id_processo = pen.id_processo)
+    INNER JOIN LATERAL (
+        SELECT doc.dt_juntada FROM tb_processo_documento doc WHERE 
+        doc.id_processo = pen.id_processo
+        AND doc.dt_juntada < pen.dt_atualizacao
+        AND doc.id_tipo_processo_documento IN (SELECT id_tipo_processo_documento FROM tipos_documento)
+        ORDER BY doc.dt_juntada DESC LIMIT 1
+    ) peticao ON TRUE
     WHERE
         concluso.id_pessoa_magistrado  = coalesce(:MAGISTRADO, concluso.id_pessoa_magistrado)
         -- concluso.in_diligencia != 'S'
-        AND p.id_agrupamento_fase = 4 -- somente execucao --//TODO: confirmar
-        AND 
-        
-        (   EXISTS(
-                SELECT 1 FROM tb_processo_documento doc WHERE 
-                doc.id_processo = pen.id_processo
-                AND doc.dt_juntada < pen.dt_atualizacao
-                AND doc.id_tipo_processo_documento IN (SELECT id_tipo_processo_documento FROM tipos_documento)
-
-            )
-        )
+        AND p.id_agrupamento_fase = 4 -- somente execucao --
         AND NOT EXISTS(
             SELECT 1 FROM tb_processo_evento pe 
             INNER JOIN tb_evento_processual ev ON 
@@ -54,7 +51,7 @@ SELECT  concluso.id_pessoa_magistrado,
             AND pe.id_processo_evento_excludente IS NULL
             AND (pe.dt_atualizacao > pen.dt_atualizacao
                     -- OR
-                    -- pe.dt_atualizacao BETWEEN 
+                    -- pe.dt_atualizacao BETWEEN peticao.dt_juntada AND pen.dt_atualizacao
                 )
             AND (
                 (
@@ -67,6 +64,7 @@ SELECT  concluso.id_pessoa_magistrado,
 -- 50050 - Extinto com resolução do mérito o incidente #{nome do incidente} de #{nome da parte}
 -- 50048 - Extinto sem resolução do mérito o incidente #{nome do incidente} de #{nome da parte}
 -- 50087 - Baixado o incidente/ recurso (#{nome do incidente} / #{nome do recurso}) sem decisão, onde nome do recurso deve corresponder a Embargos à Execução ou Impugnação à Sentença de Liquidação 
+-- 50049 - Prejudicado o incidente #{nome do incidente} de #{nome da parte}
                     ev.cd_evento IN 
                     ('50086', '219', '221', '220', '50013', '50050', '50048')
                     OR 
@@ -81,39 +79,17 @@ SELECT  concluso.id_pessoa_magistrado,
                             )
                         )
                     )
-                    -- sem movimento de reforma/anulacao posterior
-                    -- AND 
-                    -- NOT EXISTS (
-                    --     SELECT 1 FROM 
-                    --     tb_processo_evento reforma_anulacao
-                    --     INNER JOIN tb_evento_processual ev 
-                    --         ON reforma_anulacao.id_evento = ev.id_evento_processual
-                    --     INNER JOIN tb_complemento_segmentado cs 
-                    --         ON (cs.id_movimento_processo = reforma_anulacao.id_evento)
-                    --     WHERE
-                    --         p.id_processo = reforma_anulacao.id_processo
-                    --         AND reforma_anulacao.id_processo_evento_excludente IS NULL
-                    --         AND pe.dt_atualizacao <= reforma_anulacao.dt_atualizacao
-                    --         AND ev.cd_evento = '132' 
-                    --         AND cs.ds_texto IN ('7098', '7131', '7132', '7467', '7585')
-                    -- )
-
+-- 50049 - Prejudicado o incidente #{nome do incidente} de #{nome da parte}
+                    OR 
+                    (
+                        --nome do complemento bate com o da conclusao
+                        ev.cd_evento = '50049' AND
+                        pe.ds_texto_final_interno ilike ANY 
+                            (ARRAY['Prejudicado o incidente Impugnação à Sentença de Liquidação%', 
+		                           'Prejudicado o incidente Embargos à Execução%']
+                            ) 
+                    )
                 )
-                -- OR
-                -- (
-                --     pe.dt_atualizacao > pen.dt_atualizacao AND
-                --     (
-                --         -- Convertido o julgamento em dilig_ncia 
-                --         -- o movimento abaixo nao deve ser considerado para proferidas
-                --         ev.cd_evento = '11022'
-                --         OR
-                --             (
-                --                 -- teve um novo concluso pra sentenca
-                --                 ev.cd_evento = '51' AND
-                --                 pe.ds_texto_final_interno ilike 'Concluso%proferir senten_a%'
-                --             )
-                --     )    
-                -- )
             ) 
         )
 )
