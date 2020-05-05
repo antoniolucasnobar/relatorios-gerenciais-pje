@@ -27,6 +27,7 @@ WITH proferidas AS (
     ) concluso on TRUE
     where doc.in_ativo = 'S'
     AND doc.id_tipo_processo_documento = 62
+    AND assin.id_pessoa = coalesce(:MAGISTRADO, assin.id_pessoa)
     -- and tipo.cd_documento = '7007'
     and doc.dt_juntada :: date between (:DATA_INICIAL)::date and (:DATA_FINAL)::date
     and concluso.ds_texto_final_interno ilike 'Concluso%proferir senten_a%'
@@ -51,3 +52,4 @@ FROM proferidas
     inner join tb_processo_trf ptrf on ptrf.id_processo_trf = p.id_processo
     inner join tb_orgao_julgador oj on oj.id_orgao_julgador = ptrf.id_orgao_julgador
     INNER JOIN tb_classe_judicial cj ON (cj.id_classe_judicial = ptrf.id_classe_judicial)
+ORDER BY ul.ds_nome, proferidas.dt_juntada
