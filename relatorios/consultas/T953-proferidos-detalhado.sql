@@ -1,85 +1,53 @@
 -- R136873 - Relatório SAO - SENTENÇAS DE CONHECIMENTO proferidas.
-WITH proferidos AS (
-SELECT  concluso.id_pessoa_magistrado AS id_usuario, 
-        data_proferimento.data_proferida,
-        p.id_processo,
-        p.nr_processo
-        -- COUNT(concluso.id_pessoa_magistrado) AS total
-    FROM 
-    tb_conclusao_magistrado concluso
-    INNER JOIN tb_processo_evento pen 
-    ON (pen.id_processo_evento = concluso.id_processo_evento 
-        AND pen.id_processo_evento_excludente IS NULL
-    	and pen.id_evento = 51 -- esse é o codigo do movimento. se esse id mudar tem de ir na tb_evento_processual.cd_evento
-        AND pen.ds_texto_final_interno ilike 'Concluso%proferir senten_a%')
-    INNER JOIN tb_processo p on (p.id_processo = pen.id_processo)
-    INNER JOIN LATERAL (
-        SELECT pe.dt_atualizacao AS data_proferida, ev.cd_evento FROM tb_processo_evento pe 
-        INNER JOIN tb_evento_processual ev ON 
-            (pe.id_evento = ev.id_evento_processual)
-        WHERE pen.id_processo = pe.id_processo
-        AND   pe.dt_atualizacao > pen.dt_atualizacao
-        AND pe.id_processo_evento_excludente IS NULL
-        AND (
-        
-            (
-                -- eh movimento de julgamento
-                ev.cd_evento IN 
-                ('941', '442', '450', '452', '444', 
-                '471', '446', '448', '455', '466', 
-                '11795', '220', '50103', '221', '219', 
-                '472', '473', '458', '461', '459', '465', 
-                '462', '463', '457', '460', '464', '454'
-                )
-                -- sem movimento de reforma/anulacao posterior
-                AND 
-                NOT EXISTS (
-                    SELECT 1 FROM 
-                    tb_processo_evento reforma_anulacao
-                    INNER JOIN tb_evento_processual ev 
-                        ON reforma_anulacao.id_evento = ev.id_evento_processual
-                    INNER JOIN tb_complemento_segmentado cs 
-                        ON (cs.id_movimento_processo = reforma_anulacao.id_evento)
-                    WHERE
-                        pe.id_processo = reforma_anulacao.id_processo
-                        AND reforma_anulacao.id_processo_evento_excludente IS NULL
-                        AND reforma_anulacao.dt_atualizacao :: date BETWEEN 
-                            (pe.dt_atualizacao)::date AND (:DATA_FINAL)::date
-                        AND ev.cd_evento = '132' 
-                        AND cs.ds_texto IN ('7098', '7131', '7132', '7467', '7585')
-                )
-            )
-            -- nao existe um outro concluso mais recente, porem anterior ao movimento de julgamento
-            OR
-            (
-                -- Convertido o julgamento em dilig_ncia 
-                -- o movimento abaixo nao deve ser considerado para proferidas
-                ev.cd_evento = '11022'
-                OR
-                (
-                    -- teve um novo concluso pra sentenca
-                    ev.cd_evento = '51' AND
-                    pe.ds_texto_final_interno ilike 'Concluso%proferir senten_a%'
-                )  
-            )
-            
-        ) 
-    ORDER BY pe.dt_atualizacao ASC LIMIT 1) data_proferimento ON TRUE
 
-    WHERE
-        concluso.id_pessoa_magistrado  = coalesce(:MAGISTRADO, concluso.id_pessoa_magistrado)
-        AND data_proferimento.cd_evento NOT IN ('11022', '51')
-        AND data_proferimento.data_proferida :: date between (:DATA_INICIAL)::date and (:DATA_FINAL)::date
-        -- concluso.in_diligencia != 'S'
+-- explain analyze
+WITH proferidas AS (
+    select 
+    -- ul.ds_nome, 
+    assin.id_pessoa, 
+    doc.dt_juntada,
+    doc.id_processo
+    from tb_processo_documento doc 
+    inner join tb_proc_doc_bin_pess_assin assin on (doc.id_processo_documento_bin = assin.id_processo_documento_bin)
+    -- inner join tb_usuario_login ul on (ul.id_usuario = assin.id_pessoa)
+    -- inner join pje.tb_tipo_processo_documento tipo using (id_tipo_processo_documento)
+    inner join lateral (
+        select concluso.*, pen.ds_texto_final_interno FROM 
+        tb_conclusao_magistrado concluso
+        INNER JOIN tb_processo_evento pen 
+            ON (pen.id_processo_evento = concluso.id_processo_evento 
+                and pen.id_processo = doc.id_processo 
+                AND pen.id_processo_evento_excludente IS NULL
+                and pen.id_evento = 51 -- esse é o codigo do movimento. se esse id mudar tem de ir na tb_evento_processual.cd_evento
+                -- AND pen.ds_texto_final_interno ilike 'Concluso%proferir senten_a%')
+            )
+        where pen.dt_atualizacao < doc.dt_juntada 
+        order by pen.dt_atualizacao desc 
+        limit 1
+    ) concluso on TRUE
+    where doc.in_ativo = 'S'
+    AND doc.id_tipo_processo_documento = 62
+    -- and tipo.cd_documento = '7007'
+    and doc.dt_juntada :: date between (:DATA_INICIAL)::date and (:DATA_FINAL)::date
+    and concluso.ds_texto_final_interno ilike 'Concluso%proferir senten_a%'
+    --  nao pode ter "Extinta a execução ou o cumprimento da sentença por ..." lancado junto com a sentenca
+    and not exists (
+                        select 1 from tb_processo_evento extinta_execucao
+                        where extinta_execucao.id_processo = doc.id_processo and 
+                        date(doc.dt_juntada) = date(extinta_execucao.dt_atualizacao)
+ 				)
 )
--- SELECT * FROM proferidos
- SELECT 'http://processo='||p.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_DETALHES_PROCESSO' as " ",
+SELECT 'http://processo='||p.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_DETALHES_PROCESSO' as " ",
          'http://processo='||p.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_TAREFA&texto='
-        --  ||cj.ds_classe_judicial_sigla||' '
+         ||cj.ds_classe_judicial_sigla||' '
          ||p.nr_processo as "Processo",
-ul.ds_nome AS "Magistrado",
-prof.data_proferida AS "Proferida em"
-FROM proferidos prof
-INNER JOIN tb_processo p ON (prof.id_processo = p.id_processo)
-INNER JOIN tb_usuario_login ul ON (ul.id_usuario = prof.id_usuario)
-ORDER BY ul.ds_nome, prof.data_proferida
+    REPLACE(oj.ds_orgao_julgador, 'VARA DO TRABALHO', 'VT') AS "Unidade",
+    ul.ds_nome AS "Magistrado",
+    proferidas.dt_juntada AS "Proferida em"
+
+FROM proferidas 
+    INNER JOIN tb_usuario_login ul on (ul.id_usuario = proferidas.id_pessoa)
+    INNER JOIN tb_processo p ON (p.id_processo = proferidas.id_processo)
+    inner join tb_processo_trf ptrf on ptrf.id_processo_trf = p.id_processo
+    inner join tb_orgao_julgador oj on oj.id_orgao_julgador = ptrf.id_orgao_julgador
+    INNER JOIN tb_classe_judicial cj ON (cj.id_classe_judicial = ptrf.id_classe_judicial)
