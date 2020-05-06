@@ -4,7 +4,7 @@
 WITH tipos_documento AS (
     --16	Embargos à Execução	S			7143
     --32	Impugnação à Sentença de Liquidação	S			53
-    select id_tipo_processo_documento 
+    select id_tipo_processo_documento, ds_tipo_processo_documento
         from tb_tipo_processo_documento 
     where cd_documento IN ('53', '7143') 
         and in_ativo = 'S'
@@ -12,9 +12,12 @@ WITH tipos_documento AS (
 pendentes_execucao AS (
 SELECT  concluso.id_pessoa_magistrado, 
         pen.id_processo_evento,
-        pen.dt_atualizacao AS pendente_desde,
+        to_char(pen.dt_atualizacao, 'dd/mm/yy') AS pendente_desde,
+        pen.ds_texto_final_interno AS nome_concluso,
         p.id_processo,
-        p.nr_processo
+        p.nr_processo,
+        to_char(peticao.dt_juntada, 'dd/mm/yy') AS juntada_peticao,
+        peticao.ds_tipo_processo_documento AS tipo_peticao
         -- COUNT(concluso.id_pessoa_magistrado) AS total
     FROM 
     tb_conclusao_magistrado concluso
@@ -32,10 +35,14 @@ SELECT  concluso.id_pessoa_magistrado,
         )
     INNER JOIN tb_processo p on (p.id_processo = pen.id_processo)
     INNER JOIN LATERAL (
-        SELECT doc.dt_juntada FROM tb_processo_documento doc WHERE 
-        doc.id_processo = pen.id_processo
-        AND doc.dt_juntada < pen.dt_atualizacao
-        AND doc.id_tipo_processo_documento IN (SELECT id_tipo_processo_documento FROM tipos_documento)
+        SELECT doc.dt_juntada, tipo.ds_tipo_processo_documento 
+        FROM tb_processo_documento doc 
+        INNER JOIN tipos_documento tipo ON 
+            (doc.id_tipo_processo_documento = tipo.id_tipo_processo_documento)
+        WHERE 
+            doc.id_processo = pen.id_processo
+            AND doc.dt_juntada < pen.dt_atualizacao
+            -- AND doc.id_tipo_processo_documento IN (SELECT id_tipo_processo_documento FROM tipos_documento)
         ORDER BY doc.dt_juntada DESC LIMIT 1
     ) peticao ON TRUE
     WHERE
@@ -97,6 +104,13 @@ SELECT  concluso.id_pessoa_magistrado,
         ||cj.ds_classe_judicial_sigla||' '
         ||p.nr_processo as "Processo",
 ul.ds_nome AS "Magistrado",
+p.tipo_peticao
+--||' - '|| p.juntada_peticao 
+AS "Tipo Petição",
+ p.juntada_peticao AS "Data Petição",
+ REGEXP_REPLACE(p.nome_concluso,
+    'Conclusos os autos para julgamento (da|dos) (.*) a (.*)'
+    ,'\2') AS "Conclusos os autos para julgamento",
  p.pendente_desde AS "Pendente Desde"
 FROM pendentes_execucao p
 INNER JOIN tb_usuario_login ul ON (ul.id_usuario = p.id_pessoa_magistrado)
