@@ -12,11 +12,11 @@ SELECT  concluso.id_pessoa_magistrado,
     FROM 
     tb_conclusao_magistrado concluso
     INNER JOIN tb_processo_evento pen 
-    INNER JOIN tb_processo p on (p.id_processo = pen.id_processo)
     ON (pen.id_processo_evento = concluso.id_processo_evento 
         AND pen.id_processo_evento_excludente IS NULL
     	and pen.id_evento = 51 -- esse é o codigo do movimento. se esse id mudar tem de ir na tb_evento_processual.cd_evento
         AND pen.ds_texto_final_interno ilike 'Concluso%proferir senten_a%')
+    INNER JOIN tb_processo p on (p.id_processo = pen.id_processo)
     WHERE
         concluso.id_pessoa_magistrado  = coalesce(:MAGISTRADO, concluso.id_pessoa_magistrado)
         -- concluso.in_diligencia != 'S'
@@ -77,7 +77,7 @@ SELECT ul.ds_nome AS "Magistrado",
 -- conclusos_por_magistrado.total,
 
 conclusos_por_magistrado.pendentes_sentenca AS "Pendentes",
-'$URL/execucao/T951?MAGISTRADO='||conclusos_por_magistrado.id_pessoa_magistrado as "Ver Pendentes"
+'$URL/execucao/T951?MAGISTRADO='||conclusos_por_magistrado.id_pessoa_magistrado||'&texto='||conclusos_por_magistrado.pendentes_sentenca as "Ver Pendentes"
 -- conclusos_por_magistrado.total - conclusos_por_magistrado.pendentes_sentenca AS proferidas
 FROM  (
     SELECT  pendentes.id_pessoa_magistrado, 
