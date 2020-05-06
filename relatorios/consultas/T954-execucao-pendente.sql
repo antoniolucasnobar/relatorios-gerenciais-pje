@@ -11,7 +11,7 @@
 --
 -- Estar na fase de Execução
 -- 
--- Existir um movimento dentre os seguintes, após o concluso
+-- NÃO Existir um movimento dentre os seguintes, após o concluso
 -- 50086 - Encerrada a conclusão  
 -- 219   - Julgado(s) procedente(s) o(s) pedido(s) (#{classe processual}/ #{nome do incidente}) de #{nome da parte}
 -- 221   - Julgado(s) procedente(s) em parte o(s) pedido(s) (#{classe processual} / #{nome do incidente}) de #{nome da parte}  
