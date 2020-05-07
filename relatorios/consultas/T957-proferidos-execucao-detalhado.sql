@@ -21,9 +21,8 @@ tipos_movimento AS (
 -- 50013 - Julgado(s) liminarmente improcedente(s) o(s) pedido(s) (#{classe processual} / #{nome do incidente}) de #{nome da parte}  
 -- 50050 - Extinto com resolução do mérito o incidente #{nome do incidente} de #{nome da parte}
 -- 50048 - Extinto sem resolução do mérito o incidente #{nome do incidente} de #{nome da parte}
--- 50049 - Prejudicado o incidente #{nome do incidente} de #{nome da parte}
         ev.cd_evento IN 
-        ('219', '221', '220', '50013', '50050', '50048', '50049')
+        ('219', '221', '220', '50013', '50050', '50048')
 ) 
 ,
  proferidas AS (
