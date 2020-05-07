@@ -1,8 +1,6 @@
 -- R136873 - Relatório SAO - SENTENÇAS DE CONHECIMENTO PROFERIDAS.
--- Conclusos os autos para julgamento Proferir sentença a MARCELE CRUZ LANOT ANTONIAZZI
--- codigo 51
 
-WITH proferidas AS (
+WITH sentencas_conhecimento_proferidas AS (
     select 
     -- ul.ds_nome, 
     assin.id_pessoa, 
@@ -13,7 +11,7 @@ WITH proferidas AS (
     -- inner join tb_usuario_login ul on (ul.id_usuario = assin.id_pessoa)
     -- inner join pje.tb_tipo_processo_documento tipo using (id_tipo_processo_documento)
     inner join lateral (
-        select concluso.*, pen.ds_texto_final_interno FROM 
+        select pen.ds_texto_final_interno FROM 
         tb_conclusao_magistrado concluso
         INNER JOIN tb_processo_evento pen 
             ON (pen.id_processo_evento = concluso.id_processo_evento 
@@ -41,18 +39,17 @@ WITH proferidas AS (
  				)
 )
 SELECT ul.ds_nome AS "Magistrado", 
--- conclusos_por_magistrado.total,
-    conclusos_por_magistrado.proferidas_sentenca AS "Proferidas"
+    sentencas_conhecimento.proferidas_sentenca AS "Proferidas"
     ,
-    '$URL/execucao/T953?MAGISTRADO='||conclusos_por_magistrado.id_pessoa
+    '$URL/execucao/T953?MAGISTRADO='||sentencas_conhecimento.id_pessoa
     ||'&DATA_INICIAL='||to_char(:DATA_INICIAL::date,'mm/dd/yyyy')
     ||'&DATA_FINAL='||to_char(:DATA_FINAL::date,'mm/dd/yyyy')
-    ||'&texto='||conclusos_por_magistrado.proferidas_sentenca as "Ver Proferidas"
+    ||'&texto='||sentencas_conhecimento.proferidas_sentenca as "Ver Proferidas"
 FROM  (
-    SELECT  proferidas.id_pessoa, 
-        COUNT(proferidas.id_pessoa) AS proferidas_sentenca
-    FROM proferidas
-    GROUP BY proferidas.id_pessoa
-) conclusos_por_magistrado  
-INNER JOIN tb_usuario_login ul ON (ul.id_usuario = conclusos_por_magistrado.id_pessoa)
+    SELECT  sentencas_conhecimento_proferidas.id_pessoa, 
+        COUNT(sentencas_conhecimento_proferidas.id_pessoa) AS proferidas_sentenca
+    FROM sentencas_conhecimento_proferidas
+    GROUP BY sentencas_conhecimento_proferidas.id_pessoa
+) sentencas_conhecimento  
+INNER JOIN tb_usuario_login ul ON (ul.id_usuario = sentencas_conhecimento.id_pessoa)
 ORDER BY ul.ds_nome
