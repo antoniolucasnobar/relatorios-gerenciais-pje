@@ -28,14 +28,16 @@
 --  - Impugnacao a Sentenca de Liquidacao
 --
 
-WITH tipos_documento AS (
-    --16	Embargos à Execução	S			7143
-    --32	Impugnação à Sentença de Liquidação	S			53
-    select id_tipo_processo_documento 
-        from tb_tipo_processo_documento 
-    where cd_documento IN ('53', '7143') 
-        and in_ativo = 'S'
-) ,
+WITH 
+-- comentado pois jeferson falou que acontece da peticao estar classificada incorretamente.
+-- tipos_documento AS (
+--     --16	Embargos à Execução	S			7143
+--     --32	Impugnação à Sentença de Liquidação	S			53
+--     select id_tipo_processo_documento 
+--         from tb_tipo_processo_documento 
+--     where cd_documento IN ('53', '7143') 
+--         and in_ativo = 'S'
+-- ) ,
 pendentes_execucao AS (
 SELECT  concluso.id_pessoa_magistrado, 
         pen.id_processo_evento,
@@ -58,13 +60,13 @@ SELECT  concluso.id_pessoa_magistrado,
                 )
         )
     INNER JOIN tb_processo p on (p.id_processo = pen.id_processo)
-    INNER JOIN LATERAL (
-        SELECT doc.dt_juntada FROM tb_processo_documento doc WHERE 
-        doc.id_processo = pen.id_processo
-        AND doc.dt_juntada < pen.dt_atualizacao
-        AND doc.id_tipo_processo_documento IN (SELECT id_tipo_processo_documento FROM tipos_documento)
-        ORDER BY doc.dt_juntada DESC LIMIT 1
-    ) peticao ON TRUE
+    -- INNER JOIN LATERAL (
+    --     SELECT doc.dt_juntada FROM tb_processo_documento doc WHERE 
+    --     doc.id_processo = pen.id_processo
+    --     AND doc.dt_juntada < pen.dt_atualizacao
+    --     AND doc.id_tipo_processo_documento IN (SELECT id_tipo_processo_documento FROM tipos_documento)
+    --     ORDER BY doc.dt_juntada DESC LIMIT 1
+    -- ) peticao ON TRUE
     WHERE
         concluso.id_pessoa_magistrado  = coalesce(:MAGISTRADO, concluso.id_pessoa_magistrado)
         -- concluso.in_diligencia != 'S'

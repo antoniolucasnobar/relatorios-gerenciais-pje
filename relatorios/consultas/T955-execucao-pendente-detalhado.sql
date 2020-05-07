@@ -34,7 +34,7 @@ SELECT  concluso.id_pessoa_magistrado,
                 )
         )
     INNER JOIN tb_processo p on (p.id_processo = pen.id_processo)
-    INNER JOIN LATERAL (
+    LEFT JOIN LATERAL (
         SELECT doc.dt_juntada, tipo.ds_tipo_processo_documento 
         FROM tb_processo_documento doc 
         INNER JOIN tipos_documento tipo ON 
