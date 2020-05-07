@@ -4,11 +4,11 @@
 -- 200 - Não acolhidos os Embargos de Declaração de #{nome da parte}  
 -- 235 - Não conhecido(s) o(s) #{nome do recurso} / #{nome do conflito} de #{nome da parte} / #{nome da pessoa} 
 WITH
-tipo_documento_embargo_declaracao AS (
-    --23	Embargos de Declaração	S			49
+tipo_documento_sentenca AS (
+    --62	Sentença	S			7007
     select id_tipo_processo_documento 
         from tb_tipo_processo_documento 
-    where cd_documento = '49' 
+    where cd_documento = '7007' 
         and in_ativo = 'S'
 ),
 movimentos_embargos_declaracao_julgados AS (
@@ -45,7 +45,7 @@ embargos_declaracao_julgados AS (
         limit 1
     ) concluso on TRUE
     where doc.in_ativo = 'S'
-    AND doc.id_tipo_processo_documento = (SELECT id_tipo_processo_documento FROM tipo_documento_embargo_declaracao)
+    AND doc.id_tipo_processo_documento = (SELECT id_tipo_processo_documento FROM tipo_documento_sentenca)
     AND assin.id_pessoa = coalesce(:MAGISTRADO, assin.id_pessoa)
     and doc.dt_juntada :: date between (:DATA_INICIAL)::date and (:DATA_FINAL)::date
     and concluso.ds_texto_final_interno ilike 'Conclusos os autos para julgamento dos Embargos de Declara__o%'
