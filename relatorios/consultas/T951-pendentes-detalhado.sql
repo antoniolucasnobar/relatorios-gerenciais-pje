@@ -1,4 +1,8 @@
 -- R136872 - Relatório SAO - SENTENÇAS DE CONHECIMENTO PENDENTES.
+
+-- 50129 -> canc. liq
+-- revog dec. ant -> 945
+
 WITH pendentes AS (
 SELECT  concluso.id_pessoa_magistrado, 
         pen.id_processo_evento,
@@ -35,7 +39,7 @@ SELECT  concluso.id_pessoa_magistrado,
                     '472', '473', '458', '461', '459', '465', 
                     '462', '463', '457', '460', '464', '454'
                     )
-                    -- sem movimento de reforma/anulacao posterior
+                    -- sem movimento de revogação/reforma/anulacao posterior
                     AND 
                     NOT EXISTS (
                         SELECT 1 FROM 
@@ -48,8 +52,23 @@ SELECT  concluso.id_pessoa_magistrado,
                             p.id_processo = reforma_anulacao.id_processo
                             AND reforma_anulacao.id_processo_evento_excludente IS NULL
                             AND pe.dt_atualizacao <= reforma_anulacao.dt_atualizacao
-                            AND ev.cd_evento = '132' 
-                            AND cs.ds_texto IN ('7098', '7131', '7132', '7467', '7585')
+                            AND (
+                                -- - Recebidos os autos para novo julgamento (por reforma da decisão pela instância superior)
+                                -- - Recebidos os autos para novo julgamento (por necessidade de adequação ao sistema de precedente de recurso repetitivo)
+                                -- - Recebidos os autospara novo julgamento (por reforma da decisão da instância inferior)
+                                -- - Recebidos os autos para novo julgamento (por determinação superior para uniformização de jurisprudência)
+                                (ev.cd_evento = '132' 
+                                    AND cs.ds_texto IN ('7098', '7131', '7132', '7467', '7585')
+                                )
+                                OR
+                                (
+                                    -- 157 -> 945 - Revogada a decisão anterior (#{tipo de decisão}))
+                                    -- 3   -> 190 - Reformada a decisão anterior (#{tipo de decisão})
+                                   ev.cd_evento = IN ('945', '190')
+                                   AND reforma_anulacao.ds_texto_final_interno ilike 'Re%ada a decisão anterior%senten_a%'  
+                                )
+                                
+                            )
                     )
 
                 )
@@ -81,7 +100,4 @@ ul.ds_nome AS "Magistrado",
 FROM pendentes p
 INNER JOIN tb_usuario_login ul ON (ul.id_usuario = p.id_pessoa_magistrado)
 ORDER BY ul.ds_nome, p.pendente_desde 
-
-
-
 
