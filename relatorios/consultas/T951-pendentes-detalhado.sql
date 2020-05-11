@@ -1,8 +1,5 @@
 -- R136872 - Relatório SAO - SENTENÇAS DE CONHECIMENTO PENDENTES
 
--- 50129 -> canc. liq
--- revog dec. ant -> 945
-
 WITH 
 sentencas_conhecimento_pendentes_por_magistrado AS (
 SELECT  concluso.id_pessoa_magistrado, 
@@ -20,7 +17,27 @@ SELECT  concluso.id_pessoa_magistrado,
     INNER JOIN tb_processo p ON (p.id_processo = pen.id_processo)
     WHERE
         concluso.id_pessoa_magistrado  = coalesce(:MAGISTRADO, concluso.id_pessoa_magistrado)
-        AND p.id_agrupamento_fase = 2 -- somente conhecimento
+        -- AND p.id_agrupamento_fase = 2  -- nao da pra usar a faase, pq tem de ver a situacao do processo na data escolhida pelo usuario.
+        -- somente conhecimento -sub-consulta abaixo
+        AND (
+        SELECT (ev.cd_evento IN ('50129', '26')) FROM tb_processo_evento pe 
+            INNER JOIN tb_evento_processual ev ON 
+                (pe.id_evento = ev.id_evento_processual)
+            WHERE pen.id_processo = pe.id_processo
+                AND pe.dt_atualizacao::date <= (:DATA_FINAL)::date
+                AND pe.id_processo_evento_excludente IS NULL
+                AND ev.cd_evento IN 
+                    (
+                        -- DISTRIBUIDO_POR("26", "Distribuído por #{tipo de distribuição}"),
+                        -- ARQUIVADOS_OS_AUTOS_DEFINITIVAMENTE ("246", "Arquivados os autos definitivamente"),
+                        -- CANCELADA_A_LIQUIDACAO("50129", "Cancelada a liquidação"),
+                        -- INICIADA_A_EXECUCAO ("11385", "Iniciada a execução #{tipo de execução}"),
+                        -- INICIADA_A_LIQUIDACAO ("11384", "Iniciada a liquidação #{tipo de liquidação}"),
+                        '50129', '26', '11384', '11385', '246'
+                    )
+                ORDER BY pe.dt_atualizacao DESC
+                LIMIT 1
+        )
         AND pen.dt_atualizacao::date <= (:DATA_FINAL)::date
         AND NOT EXISTS(
             SELECT 1 FROM tb_processo_evento pe 
