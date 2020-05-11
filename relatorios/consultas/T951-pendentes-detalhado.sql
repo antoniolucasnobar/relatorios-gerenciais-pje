@@ -1,9 +1,10 @@
--- R136872 - Relatório SAO - SENTENÇAS DE CONHECIMENTO PENDENTES.
+-- R136872 - Relatório SAO - SENTENÇAS DE CONHECIMENTO PENDENTES
 
 -- 50129 -> canc. liq
 -- revog dec. ant -> 945
 
-WITH pendentes AS (
+WITH 
+sentencas_conhecimento_pendentes_por_magistrado AS (
 SELECT  concluso.id_pessoa_magistrado, 
         pen.id_processo_evento,
         pen.dt_atualizacao AS pendente_desde,
@@ -16,7 +17,7 @@ SELECT  concluso.id_pessoa_magistrado,
         AND pen.id_processo_evento_excludente IS NULL
     	and pen.id_evento = 51 -- esse é o codigo do movimento. se esse id mudar tem de ir na tb_evento_processual.cd_evento
         AND pen.ds_texto_final_interno ilike 'Concluso%proferir senten_a%')
-    INNER JOIN tb_processo p on (p.id_processo = pen.id_processo)
+    INNER JOIN tb_processo p ON (p.id_processo = pen.id_processo)
     WHERE
         concluso.id_pessoa_magistrado  = coalesce(:MAGISTRADO, concluso.id_pessoa_magistrado)
         AND p.id_agrupamento_fase = 2 -- somente conhecimento
@@ -64,7 +65,7 @@ SELECT  concluso.id_pessoa_magistrado,
                                 (
                                     -- 157 -> 945 - Revogada a decisão anterior (#{tipo de decisão}))
                                     -- 3   -> 190 - Reformada a decisão anterior (#{tipo de decisão})
-                                   ev.cd_evento = IN ('945', '190')
+                                   ev.cd_evento IN ('945', '190')
                                    AND reforma_anulacao.ds_texto_final_interno ilike 'Re%ada a decisão anterior%senten_a%'  
                                 )
                                 
@@ -97,7 +98,7 @@ SELECT  concluso.id_pessoa_magistrado,
          ||p.nr_processo as "Processo",
 ul.ds_nome AS "Magistrado",
  p.pendente_desde AS "Pendente Desde"
-FROM pendentes p
+FROM sentencas_conhecimento_pendentes_por_magistrado p
 INNER JOIN tb_usuario_login ul ON (ul.id_usuario = p.id_pessoa_magistrado)
 ORDER BY ul.ds_nome, p.pendente_desde 
 
