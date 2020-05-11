@@ -2,7 +2,7 @@
 -- Conclusos os autos para julgamento Proferir sentença a MARCELE CRUZ LANOT ANTONIAZZI
 -- codigo 51
 
-WITH pendentes AS (
+WITH sentencas_conhecimento_pendente AS (
 SELECT  concluso.id_pessoa_magistrado, 
         pen.id_processo_evento,
         pen.dt_atualizacao AS pendente_desde,
@@ -74,17 +74,13 @@ SELECT  concluso.id_pessoa_magistrado,
         )
 )
 SELECT ul.ds_nome AS "Magistrado", 
--- conclusos_por_magistrado.total,
-
-conclusos_por_magistrado.pendentes_sentenca AS "Pendentes",
-'$URL/execucao/T951?MAGISTRADO='||conclusos_por_magistrado.id_pessoa_magistrado||'&texto='||conclusos_por_magistrado.pendentes_sentenca as "Ver Pendentes"
--- conclusos_por_magistrado.total - conclusos_por_magistrado.pendentes_sentenca AS proferidas
+sentencas_conhecimento_pendentes_por_magistrado.pendentes_sentenca AS "Pendentes",
+'$URL/execucao/T951?MAGISTRADO='||sentencas_conhecimento_pendentes_por_magistrado.id_pessoa_magistrado||'&texto='||sentencas_conhecimento_pendentes_por_magistrado.pendentes_sentenca as "Ver Pendentes"
 FROM  (
-    SELECT  pendentes.id_pessoa_magistrado, 
-        -- COUNT(pendentes.id_pessoa_magistrado) AS total,
-        COUNT(pendentes.id_pessoa_magistrado) AS pendentes_sentenca
-    FROM pendentes
-    GROUP BY pendentes.id_pessoa_magistrado
-) conclusos_por_magistrado  
-INNER JOIN tb_usuario_login ul ON (ul.id_usuario = conclusos_por_magistrado.id_pessoa_magistrado)
+    SELECT  sentencas_conhecimento_pendente.id_pessoa_magistrado, 
+        COUNT(sentencas_conhecimento_pendente.id_pessoa_magistrado) AS pendentes_sentenca
+    FROM sentencas_conhecimento_pendente
+    GROUP BY sentencas_conhecimento_pendente.id_pessoa_magistrado
+) sentencas_conhecimento_pendentes_por_magistrado  
+INNER JOIN tb_usuario_login ul ON (ul.id_usuario = sentencas_conhecimento_pendentes_por_magistrado.id_pessoa_magistrado)
 ORDER BY ul.ds_nome
