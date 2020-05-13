@@ -152,7 +152,7 @@ SELECT  concluso.id_pessoa_magistrado,
                             (
                                 -- teve um novo concluso pra sentenca
                                 ev.cd_evento = '51' AND
-                                pe.ds_texto_final_interno ilike 'Concluso%proferir senten_a%'
+                                pe.ds_texto_final_interno ilike 'Concluso%julgamento%proferir senten_a%'
                             )
                         OR
                             (
