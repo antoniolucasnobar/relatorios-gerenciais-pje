@@ -1,15 +1,12 @@
 -- R136873 - Relatório SAO - SENTENÇAS DE CONHECIMENTO PROFERIDAS.
 
 WITH sentencas_conhecimento_proferidas AS (
-    select 
-    -- ul.ds_nome, 
+select 
     assin.id_pessoa, 
     doc.dt_juntada,
     doc.id_processo
     from tb_processo_documento doc 
     inner join tb_proc_doc_bin_pess_assin assin on (doc.id_processo_documento_bin = assin.id_processo_documento_bin)
-    -- inner join tb_usuario_login ul on (ul.id_usuario = assin.id_pessoa)
-    -- inner join pje.tb_tipo_processo_documento tipo using (id_tipo_processo_documento)
     inner join lateral (
         select pen.ds_texto_final_interno FROM 
         tb_conclusao_magistrado concluso
@@ -18,6 +15,7 @@ WITH sentencas_conhecimento_proferidas AS (
                 and pen.id_processo = doc.id_processo 
                 AND pen.id_processo_evento_excludente IS NULL
                 and pen.id_evento = 51 -- esse é o codigo do movimento. se esse id mudar tem de ir na tb_evento_processual.cd_evento
+                -- esse filtro tem de ser feito depois, pois precisamos verificar se o concluso que antecedeu o documento eh de fato para sentenca
                 -- AND pen.ds_texto_final_interno ilike 'Concluso%proferir senten_a%')
             )
         where pen.dt_atualizacao < doc.dt_juntada 
@@ -28,7 +26,7 @@ WITH sentencas_conhecimento_proferidas AS (
     AND doc.id_tipo_processo_documento = 62
     AND assin.id_pessoa = coalesce(:MAGISTRADO, assin.id_pessoa)
     -- and tipo.cd_documento = '7007'
-    and doc.dt_juntada :: date between (:DATA_INICIAL)::date and (:DATA_FINAL)::date
+    and doc.dt_juntada :: date between coalesce(:DATA_INICIAL_OPCIONAL, date_trunc('month', current_date))::date and (coalesce(:DATA_FINAL_OPCIONAL, current_date))::date
     and concluso.ds_texto_final_interno ilike 'Concluso%proferir senten_a%'
     --  nao pode ter "Extinta a execução ou o cumprimento da sentença por ..." lancado junto com a sentenca
     and not exists (
@@ -42,8 +40,8 @@ SELECT ul.ds_nome AS "Magistrado",
     sentencas_conhecimento.proferidas_sentenca AS "Proferidas"
     ,
     '$URL/execucao/T953?MAGISTRADO='||sentencas_conhecimento.id_pessoa
-    ||'&DATA_INICIAL='||to_char(:DATA_INICIAL::date,'mm/dd/yyyy')
-    ||'&DATA_FINAL='||to_char(:DATA_FINAL::date,'mm/dd/yyyy')
+    ||'&DATA_INICIAL_OPCIONAL='||to_char(coalesce(:DATA_INICIAL_OPCIONAL, date_trunc('month', current_date))::date,'mm/dd/yyyy')
+    ||'&DATA_FINAL_OPCIONAL='||to_char(coalesce(:DATA_FINAL_OPCIONAL, current_date)::date,'mm/dd/yyyy')
     ||'&texto='||sentencas_conhecimento.proferidas_sentenca as "Ver Proferidas"
 FROM  (
     SELECT  sentencas_conhecimento_proferidas.id_pessoa, 
