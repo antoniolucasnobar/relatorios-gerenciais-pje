@@ -6,6 +6,7 @@ select
     assin.id_pessoa, 
     doc.dt_juntada,
     doc.id_processo,
+    concluso.ds_texto_final_interno AS texto_concluso,
     concluso.dt_atualizacao AS data_conclusao
     from tb_processo_documento doc 
     inner join tb_proc_doc_bin_pess_assin assin on (doc.id_processo_documento_bin = assin.id_processo_documento_bin)
@@ -29,7 +30,7 @@ select
     AND p.id_agrupamento_fase != 5
     AND concluso.ds_texto_final_interno 
     ilike ANY (ARRAY[
-            'Concluso%julgamento%proferir senten_a%'
+            'Concluso%julgamento%' -- proferir senten_a%'
             -- ,
             -- 'Conclusos os autos para decis_o (gen_rica) a%'
     ])
@@ -71,6 +72,9 @@ SELECT 'http://processo='||p.nr_processo||'&grau=primeirograu&recurso=$RECURSO_P
          ||p.nr_processo as "Processo",
     REPLACE(oj.ds_orgao_julgador, 'VARA DO TRABALHO', 'VT') AS "Unidade",
     ul.ds_nome AS "Magistrado",
+    REGEXP_REPLACE(sentencas_sem_movimentos.texto_concluso,
+    'Conclusos os autos para julgamento (.*) a (.*)'
+    ,'\1') AS "Conclusos os autos para julgamento",
     sentencas_sem_movimentos.data_conclusao AS "Data da Conclusão",
     sentencas_sem_movimentos.dt_juntada AS "Data da Juntada",
     pt.nm_tarefa as "Tarefa Atual",
