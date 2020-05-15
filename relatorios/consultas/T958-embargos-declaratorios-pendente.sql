@@ -21,13 +21,13 @@
 
 WITH 
 -- comentado pois jeferson falou que acontece da peticao estar classificada incorretamente.
--- tipo_documento_embargo_declaracao AS (
---     --23	Embargos de Declaração	S			49
---     select id_tipo_processo_documento 
---         from tb_tipo_processo_documento 
---     where cd_documento = '49' 
---         and in_ativo = 'S'
--- ),
+tipo_documento_embargo_declaracao AS (
+    --23	Embargos de Declaração	S			49
+    select id_tipo_processo_documento 
+        from tb_tipo_processo_documento 
+    where cd_documento = '49' 
+        and in_ativo = 'S'
+),
 pendentes_embargos_declaratorio AS (
 SELECT  concluso.id_pessoa_magistrado, 
         pen.id_processo_evento,
@@ -47,13 +47,13 @@ SELECT  concluso.id_pessoa_magistrado,
                     'Conclusos os autos para julgamento dos Embargos de Declara__o%'
         )
     INNER JOIN tb_processo p on (p.id_processo = pen.id_processo)
-    -- INNER JOIN LATERAL (
-    --     SELECT doc.dt_juntada FROM tb_processo_documento doc WHERE 
-    --     doc.id_processo = pen.id_processo
-    --     AND doc.dt_juntada < pen.dt_atualizacao
-    --     AND doc.id_tipo_processo_documento IN (SELECT id_tipo_processo_documento FROM tipo_documento_embargo_declaracao)
-    --     ORDER BY doc.dt_juntada DESC LIMIT 1
-    -- ) peticao ON TRUE -- //ver comentario na definicao do tipo_documento_embargo_declaracao 
+    INNER JOIN LATERAL (
+        SELECT doc.dt_juntada FROM tb_processo_documento doc WHERE 
+        doc.id_processo = pen.id_processo
+        AND doc.dt_juntada < pen.dt_atualizacao
+        AND doc.id_tipo_processo_documento IN (SELECT id_tipo_processo_documento FROM tipo_documento_embargo_declaracao)
+        ORDER BY doc.dt_juntada DESC LIMIT 1
+    ) peticao ON TRUE -- //ver comentario na definicao do tipo_documento_embargo_declaracao 
     WHERE
         p.id_agrupamento_fase <> 5
         AND concluso.id_pessoa_magistrado  = coalesce(:MAGISTRADO, concluso.id_pessoa_magistrado)
