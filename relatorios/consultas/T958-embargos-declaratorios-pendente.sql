@@ -55,7 +55,8 @@ SELECT  concluso.id_pessoa_magistrado,
     --     ORDER BY doc.dt_juntada DESC LIMIT 1
     -- ) peticao ON TRUE -- //ver comentario na definicao do tipo_documento_embargo_declaracao 
     WHERE
-        concluso.id_pessoa_magistrado  = coalesce(:MAGISTRADO, concluso.id_pessoa_magistrado)
+        p.id_agrupamento_fase <> 5
+        AND concluso.id_pessoa_magistrado  = coalesce(:MAGISTRADO, concluso.id_pessoa_magistrado)
         AND NOT EXISTS(
             SELECT 1 FROM tb_processo_evento pe 
             INNER JOIN tb_evento_processual ev ON 
@@ -84,13 +85,13 @@ SELECT  concluso.id_pessoa_magistrado,
         )
 )
 SELECT ul.ds_nome AS "Magistrado", 
-conclusos_por_magistrado.pendentes_embargo AS "Pendentes",
-'$URL/execucao/T959?MAGISTRADO='||conclusos_por_magistrado.id_pessoa_magistrado||'&texto='||conclusos_por_magistrado.pendentes_embargo as "Ver Pendentes"
+embargos_declaratorios_pendentes.pendentes_embargo AS "Pendentes",
+'$URL/execucao/T959?MAGISTRADO='||embargos_declaratorios_pendentes.id_pessoa_magistrado||'&texto='||embargos_declaratorios_pendentes.pendentes_embargo as "Ver Pendentes"
 FROM  (
     SELECT  pendentes_embargos_declaratorio.id_pessoa_magistrado, 
             COUNT(pendentes_embargos_declaratorio.id_pessoa_magistrado) AS pendentes_embargo
     FROM pendentes_embargos_declaratorio
     GROUP BY pendentes_embargos_declaratorio.id_pessoa_magistrado
-) conclusos_por_magistrado  
-INNER JOIN tb_usuario_login ul ON (ul.id_usuario = conclusos_por_magistrado.id_pessoa_magistrado)
+) embargos_declaratorios_pendentes  
+INNER JOIN tb_usuario_login ul ON (ul.id_usuario = embargos_declaratorios_pendentes.id_pessoa_magistrado)
 ORDER BY ul.ds_nome

@@ -38,8 +38,8 @@ SELECT  concluso.id_pessoa_magistrado AS id_pessoa,
     --     AND doc.id_tipo_processo_documento IN (SELECT id_tipo_processo_documento FROM tipo_documento_embargo_declaracao)
     --     ORDER BY doc.dt_juntada DESC LIMIT 1
     -- ) peticao ON TRUE -- //ver comentario na definicao do tipo_documento_embargo_declaracao 
-    WHERE
-        concluso.id_pessoa_magistrado  = coalesce(:MAGISTRADO, concluso.id_pessoa_magistrado)
+    WHERE p.id_agrupamento_fase <> 5
+      AND  concluso.id_pessoa_magistrado  = coalesce(:MAGISTRADO, concluso.id_pessoa_magistrado)
         AND NOT EXISTS(
             SELECT 1 FROM tb_processo_evento pe 
             INNER JOIN tb_evento_processual ev ON 
