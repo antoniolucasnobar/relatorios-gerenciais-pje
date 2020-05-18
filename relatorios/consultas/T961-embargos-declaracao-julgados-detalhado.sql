@@ -47,7 +47,7 @@ embargos_declaracao_julgados AS (
     where doc.in_ativo = 'S'
     AND doc.id_tipo_processo_documento = (SELECT id_tipo_processo_documento FROM tipo_documento_sentenca)
     AND assin.id_pessoa = coalesce(:MAGISTRADO, assin.id_pessoa)
-    and doc.dt_juntada :: date between (:DATA_INICIAL)::date and (:DATA_FINAL)::date
+    and doc.dt_juntada :: date between coalesce(:DATA_INICIAL_OPCIONAL, date_trunc('month', current_date))::date and (coalesce(:DATA_OPCIONAL_FINAL, current_date))::date
     and concluso.ds_texto_final_interno ilike 'Conclusos os autos para julgamento dos Embargos de Declara__o%'
     AND EXISTS (
         SELECT 1 FROM 
@@ -68,11 +68,13 @@ SELECT 'http://processo='||p.nr_processo||'&grau=primeirograu&recurso=$RECURSO_P
          ||p.nr_processo as "Processo",
     REPLACE(oj.ds_orgao_julgador, 'VARA DO TRABALHO', 'VT') AS "Unidade",
     ul.ds_nome AS "Magistrado",
-    embargos_declaracao_julgados.dt_juntada AS "Julgado em"
+    embargos_declaracao_julgados.dt_juntada AS "Julgado em",
+    pt.nm_tarefa as "Tarefa Atual"
 FROM embargos_declaracao_julgados 
     INNER JOIN tb_usuario_login ul on (ul.id_usuario = embargos_declaracao_julgados.id_pessoa)
     INNER JOIN tb_processo p ON (p.id_processo = embargos_declaracao_julgados.id_processo)
     inner join tb_processo_trf ptrf on ptrf.id_processo_trf = p.id_processo
     inner join tb_orgao_julgador oj on oj.id_orgao_julgador = ptrf.id_orgao_julgador
     INNER JOIN tb_classe_judicial cj ON (cj.id_classe_judicial = ptrf.id_classe_judicial)
+    inner join tb_processo_tarefa pt on pt.id_processo_trf = p.id_processo
 ORDER BY ul.ds_nome, embargos_declaracao_julgados.dt_juntada
