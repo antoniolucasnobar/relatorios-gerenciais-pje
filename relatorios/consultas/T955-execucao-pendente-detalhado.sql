@@ -1,4 +1,4 @@
--- R136877 - Relatório SAO - INCIDENTES DE EXECUÇÃO PENDENTES
+-- [R136877][T955] - Relatório SAO - INCIDENTES DE EXECUÇÃO PENDENTES
 -- REGRAS NO T954
 
 WITH tipos_documento AS (
@@ -107,16 +107,26 @@ ul.ds_nome AS "Magistrado",
 p.tipo_peticao
 --||' - '|| p.juntada_peticao 
 AS "Tipo Petição",
- p.juntada_peticao AS "Data Petição",
- REGEXP_REPLACE(p.nome_concluso,
-    'Conclusos os autos para julgamento (da|dos) (.*) a (.*)'
-    ,'\2') AS "Conclusos os autos para julgamento",
- p.pendente_desde AS "Pendente Desde"
+p.juntada_peticao AS "Data Petição",
+REGEXP_REPLACE(p.nome_concluso,
+'Conclusos os autos para julgamento (da|dos) (.*) a (.*)'
+,'\2') AS "Conclusos os autos para julgamento",
+p.pendente_desde AS "Pendente Desde",
+pt.nm_tarefa as "Tarefa Atual",
+(select COALESCE(string_agg(prioridade.ds_prioridade::character varying, ', '), '-')
+    from 
+    tb_proc_prioridde_processo tabela_ligacao 
+    inner join tb_prioridade_processo prioridade 
+        on (tabela_ligacao.id_prioridade_processo = prioridade.id_prioridade_processo)
+    where 
+    tabela_ligacao.id_processo_trf = p.id_processo
+) AS "Prioridades"
 FROM pendentes_execucao p
 INNER JOIN tb_usuario_login ul ON (ul.id_usuario = p.id_pessoa_magistrado)
 inner join tb_processo_trf ptrf on ptrf.id_processo_trf = p.id_processo
 inner join tb_orgao_julgador oj on oj.id_orgao_julgador = ptrf.id_orgao_julgador
 INNER JOIN tb_classe_judicial cj ON (cj.id_classe_judicial = ptrf.id_classe_judicial)
+inner join tb_processo_tarefa pt on pt.id_processo_trf = p.id_processo
 ORDER BY ul.ds_nome, p.pendente_desde
 
 
