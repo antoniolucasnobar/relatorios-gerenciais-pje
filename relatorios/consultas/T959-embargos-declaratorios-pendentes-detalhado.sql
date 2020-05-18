@@ -4,7 +4,6 @@
 -- explain analyze
 
 WITH 
--- comentado pois jeferson falou que acontece da peticao estar classificada incorretamente.
 tipo_documento_embargo_declaracao AS (
     --23	Embargos de Declaração	S			49
     select id_tipo_processo_documento 
@@ -72,6 +71,12 @@ SELECT  concluso.id_pessoa_magistrado,
                         pe.ds_texto_final_interno ilike 
                             'Conclusos os autos para julgamento dos Embargos de Declara__o%'
                     )
+                    OR
+                    ( -- houve alteração do tipo de petição
+                        ev.cd_evento = '50088'AND
+                        pe.ds_texto_final_interno ilike 
+                            'Alterado o tipo de petição de Embargos de Declara__o%'
+                    )
                 )  
         )
 )
@@ -81,11 +86,21 @@ SELECT 'http://processo='||p.nr_processo||'&grau=primeirograu&recurso=$RECURSO_P
          ||p.nr_processo as "Processo",
     REPLACE(oj.ds_orgao_julgador, 'VARA DO TRABALHO', 'VT') AS "Unidade",
     ul.ds_nome AS "Magistrado",
-    pendentes_embargos_declaratorio.pendente_desde AS "Pendente desde"
+    pendentes_embargos_declaratorio.pendente_desde AS "Pendente desde",
+    pt.nm_tarefa as "Tarefa Atual",
+    (select COALESCE(string_agg(prioridade.ds_prioridade::character varying, ', '), '-')
+        from 
+        tb_proc_prioridde_processo tabela_ligacao 
+        inner join tb_prioridade_processo prioridade 
+            on (tabela_ligacao.id_prioridade_processo = prioridade.id_prioridade_processo)
+        where 
+        tabela_ligacao.id_processo_trf = p.id_processo
+    ) AS "Prioridades"
 FROM pendentes_embargos_declaratorio 
     INNER JOIN tb_usuario_login ul on (ul.id_usuario = pendentes_embargos_declaratorio.id_pessoa_magistrado)
     INNER JOIN tb_processo p ON (p.id_processo = pendentes_embargos_declaratorio.id_processo)
     inner join tb_processo_trf ptrf on ptrf.id_processo_trf = p.id_processo
     inner join tb_orgao_julgador oj on oj.id_orgao_julgador = ptrf.id_orgao_julgador
     INNER JOIN tb_classe_judicial cj ON (cj.id_classe_judicial = ptrf.id_classe_judicial)
+    inner join tb_processo_tarefa pt on pt.id_processo_trf = p.id_processo
 ORDER BY ul.ds_nome, pendentes_embargos_declaratorio.pendente_desde
