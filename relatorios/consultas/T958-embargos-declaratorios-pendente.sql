@@ -44,7 +44,7 @@ SELECT  concluso.id_pessoa_magistrado,
             AND 
                 pen.ds_texto_final_interno ilike 
                     'Conclusos os autos para%dos Embargos de Declara__o%'
-            AND pen.dt_atualizacao::date <= (coalesce(:DATA_FINAL_OPCIONAL, current_date))::date
+            AND pen.dt_atualizacao::date <= (coalesce(:DATA_OPCIONAL_FINAL, current_date))::date
         )
     INNER JOIN tb_processo p on (p.id_processo = pen.id_processo)
     INNER JOIN LATERAL (
@@ -103,7 +103,7 @@ SELECT  concluso.id_pessoa_magistrado,
                 (pe.id_evento = ev.id_evento_processual)
             WHERE pen.id_processo = pe.id_processo
                 AND pe.id_processo_evento_excludente IS NULL
-                AND pe.dt_atualizacao:: date <= (coalesce(:DATA_FINAL_OPCIONAL, current_date))::date
+                AND pe.dt_atualizacao:: date <= (coalesce(:DATA_OPCIONAL_FINAL, current_date))::date
                 AND pe.dt_atualizacao > pen.dt_atualizacao
                 AND 
                 (
@@ -154,7 +154,7 @@ UNION ALL
     SELECT ul.ds_nome AS "Magistrado", 
     embargos_declaratorios_pendentes.pendentes_embargo AS "Pendentes",
     '$URL/execucao/T959?MAGISTRADO='||embargos_declaratorios_pendentes.id_pessoa_magistrado
-    ||'&DATA_FINAL_OPCIONAL='||to_char((coalesce(:DATA_FINAL_OPCIONAL, current_date))::date,'mm/dd/yyyy')
+    ||'&DATA_OPCIONAL_FINAL='||to_char((coalesce(:DATA_OPCIONAL_FINAL, current_date))::date,'mm/dd/yyyy')
     ||'&texto='||embargos_declaratorios_pendentes.pendentes_embargo as "Ver Pendentes",
     embargos_declaratorios_pendentes.pendente_mais_antigo AS "ED pendente mais antigo"
     FROM embargos_declaratorios_pendentes  

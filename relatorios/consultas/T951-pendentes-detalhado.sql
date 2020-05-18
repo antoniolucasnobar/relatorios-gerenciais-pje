@@ -67,7 +67,7 @@ SELECT  concluso.id_pessoa_magistrado,
         concluso.id_pessoa_magistrado  = coalesce(:MAGISTRADO, concluso.id_pessoa_magistrado)
         AND
         (CASE
-            WHEN :DATA_FINAL_OPCIONAL::date IS NULL
+            WHEN :DATA_OPCIONAL_FINAL::date IS NULL
             THEN p.id_agrupamento_fase = 2  
             ELSE
             ( 
@@ -88,7 +88,7 @@ SELECT  concluso.id_pessoa_magistrado,
                 INNER JOIN tb_evento_processual ev ON 
                     (pe.id_evento = ev.id_evento_processual)
                 WHERE pen.id_processo = pe.id_processo
-                    AND pe.dt_atualizacao::date <= (coalesce(:DATA_FINAL_OPCIONAL, current_date))::date
+                    AND pe.dt_atualizacao::date <= (coalesce(:DATA_OPCIONAL_FINAL, current_date))::date
                     AND pe.id_processo_evento_excludente IS NULL
                     AND 
                     (   ev.cd_evento IN 
@@ -121,13 +121,13 @@ SELECT  concluso.id_pessoa_magistrado,
                 LIMIT 1
             )
         END)
-        AND pen.dt_atualizacao::date <= (coalesce(:DATA_FINAL_OPCIONAL, current_date))::date
+        AND pen.dt_atualizacao::date <= (coalesce(:DATA_OPCIONAL_FINAL, current_date))::date
         AND NOT EXISTS(
             SELECT 1 FROM tb_processo_evento pe 
             INNER JOIN tb_evento_processual ev ON 
                 (pe.id_evento = ev.id_evento_processual)
             WHERE pen.id_processo = pe.id_processo
-            AND pe.dt_atualizacao:: date <= (coalesce(:DATA_FINAL_OPCIONAL, current_date))::date
+            AND pe.dt_atualizacao:: date <= (coalesce(:DATA_OPCIONAL_FINAL, current_date))::date
             AND pe.id_processo_evento_excludente IS NULL
             AND (
                 (

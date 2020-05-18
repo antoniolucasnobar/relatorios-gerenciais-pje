@@ -16,7 +16,7 @@ select
     AND doc.id_tipo_processo_documento IN (62, 64, 93)
     AND assin.id_pessoa = coalesce(:MAGISTRADO, assin.id_pessoa)
     -- and tipo.cd_documento = '7007'
-    and doc.dt_juntada :: date between coalesce(:DATA_INICIAL_OPCIONAL, date_trunc('month', current_date))::date and (coalesce(:DATA_FINAL_OPCIONAL, current_date))::date
+    and doc.dt_juntada :: date between coalesce(:DATA_INICIAL_OPCIONAL, date_trunc('month', current_date))::date and (coalesce(:DATA_OPCIONAL_FINAL, current_date))::date
     --  nao pode ter "Extinta a execução ou o cumprimento da sentença por ..." lancado junto com a sentenca
     and not exists 
         (
