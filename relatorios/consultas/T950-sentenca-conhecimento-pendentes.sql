@@ -66,45 +66,62 @@ SELECT  concluso.id_pessoa_magistrado,
         )
     WHERE
         concluso.id_pessoa_magistrado  = coalesce(:MAGISTRADO, concluso.id_pessoa_magistrado)
-        -- AND p.id_agrupamento_fase = 2  -- nao da pra usar a faase, pq tem de ver a situacao do processo na data escolhida pelo usuario.
-        -- somente conhecimento -sub-consulta abaixo
-        AND (
-        SELECT (ev.cd_evento IN ('50129', '26', '50128')) FROM tb_processo_evento pe 
-            INNER JOIN tb_evento_processual ev ON 
-                (pe.id_evento = ev.id_evento_processual)
-            WHERE pen.id_processo = pe.id_processo
-                AND pe.dt_atualizacao::date <= (coalesce(:DATA_FINAL_OPCIONAL, current_date))::date
-                AND pe.id_processo_evento_excludente IS NULL
-                AND 
-                (   ev.cd_evento IN 
-                    (
+        AND
+        (CASE
+            WHEN :DATA_FINAL_OPCIONAL::date IS NULL
+            THEN p.id_agrupamento_fase = 2  
+            ELSE
+            ( 
+            SELECT (
+                (CASE
+                    -- CLE - Convertida a tramitação do processo do meio físico para o eletrônico 
+                    WHEN ev.cd_evento = '50081'
+                    THEN 
+                    EXISTS (
+                        -- So CLE criada no Conhecimento
+                        select 1 from tb_processo_clet 
+                        where id_processo_trf = pe.id_processo 
+                        and id_fase_processual_inicio_clet = 2
+                    )
+                    ELSE ev.cd_evento IN ('50129', '26', '50128')
+                END)               
+                ) FROM tb_processo_evento pe 
+                INNER JOIN tb_evento_processual ev ON 
+                    (pe.id_evento = ev.id_evento_processual)
+                WHERE pen.id_processo = pe.id_processo
+                    AND pe.dt_atualizacao::date <= (coalesce(:DATA_FINAL_OPCIONAL, current_date))::date
+                    AND pe.id_processo_evento_excludente IS NULL
+                    AND 
+                    (   ev.cd_evento IN 
+                        (
                         -- DISTRIBUIDO_POR("26", "Distribuído por #{tipo de distribuição}"),
                         -- ARQUIVADOS_OS_AUTOS_DEFINITIVAMENTE ("246", "Arquivados os autos definitivamente"),
                         -- ARQUIVADOS_OS_AUTOS_PROVISORIAMENTE ("245", "Arquivados os autos provisoriamente"),
                         -- CANCELADA_A_LIQUIDACAO("50129", "Cancelada a liquidação"),
                         -- INICIADA_A_EXECUCAO ("11385", "Iniciada a execução #{tipo de execução}"),
                         -- INICIADA_A_LIQUIDACAO ("11384", "Iniciada a liquidação #{tipo de liquidação}"),
-                        '50129', '26', '11384', '11385', '246', '245'
-                    )
-                    OR
-                    (
-                        -- foi cancelada a execucao e nao passou pela liq (se tem sentenca liquida). 
-                        -- Nesse caso, volta direto para o Conhecimento
-                        -- CANCELADA_A_EXECUCAO("50128", "Cancelada a execução"),
-                        ev.cd_evento = '50128' 
-                        AND NOT EXISTS(
-                            SELECT 1 FROM tb_processo_evento iniciada_liq
-                                INNER JOIN tb_evento_processual ev 
-                                    ON (iniciada_liq.id_evento = ev.id_evento_processual)
-                            WHERE   iniciada_liq.id_processo = pe.id_processo
-                                    AND iniciada_liq.dt_atualizacao < pe.dt_atualizacao
-                                    AND ev.cd_evento = '11384'
+                        '50129', '11384', '11385', '246', '245', '26', '50081'
+                        )
+                        OR
+                        (
+                            -- foi cancelada a execucao e nao passou pela liq (se tem sentenca liquida). 
+                            -- Nesse caso, volta direto para o Conhecimento
+                            -- CANCELADA_A_EXECUCAO("50128", "Cancelada a execução"),
+                            ev.cd_evento = '50128' 
+                            AND NOT EXISTS(
+                                SELECT 1 FROM tb_processo_evento iniciada_liq
+                                    INNER JOIN tb_evento_processual ev 
+                                        ON (iniciada_liq.id_evento = ev.id_evento_processual)
+                                WHERE   iniciada_liq.id_processo = pe.id_processo
+                                        AND iniciada_liq.dt_atualizacao < pe.dt_atualizacao
+                                        AND ev.cd_evento = '11384'
+                            )
                         )
                     )
-                )
                 ORDER BY pe.dt_atualizacao DESC
                 LIMIT 1
-        )
+            )
+        END)
         AND pen.dt_atualizacao::date <= (coalesce(:DATA_FINAL_OPCIONAL, current_date))::date
         AND NOT EXISTS(
             SELECT 1 FROM tb_processo_evento pe 
@@ -184,17 +201,38 @@ SELECT  concluso.id_pessoa_magistrado,
             ) 
         )
 )
-SELECT ul.ds_nome AS "Magistrado", 
+, sentencas_conhecimento_pendentes_por_magistrado AS (
+    SELECT  
+        -- SUM(COUNT(sentencas_conhecimento_pendente.id_pessoa_magistrado)) OVER () as total,
+        sentencas_conhecimento_pendente.id_pessoa_magistrado, 
+        COUNT(sentencas_conhecimento_pendente.id_pessoa_magistrado) AS pendentes_sentenca,
+        MIN(sentencas_conhecimento_pendente.pendente_desde) AS pendente_mais_antigo
+    FROM sentencas_conhecimento_pendente
+    GROUP BY sentencas_conhecimento_pendente.id_pessoa_magistrado
+)
+SELECT 
+    'TOTAL' AS "Magistrado", 
+    SUM(sentencas_conhecimento_pendentes_por_magistrado.pendentes_sentenca) AS "Pendentes", 
+    '-' as "Ver Pendentes",
+    MIN(pendente_mais_antigo) - interval '1 milliseconds' AS "Sentença pendente mais antiga"       
+FROM sentencas_conhecimento_pendentes_por_magistrado
+UNION ALL
+(
+SELECT 
+-- sentencas_conhecimento_pendentes_por_magistrado.total,
+ul.ds_nome AS "Magistrado", 
 sentencas_conhecimento_pendentes_por_magistrado.pendentes_sentenca AS "Pendentes",
 '$URL/execucao/T951?MAGISTRADO='
 ||sentencas_conhecimento_pendentes_por_magistrado.id_pessoa_magistrado
-||'&DATA_FINAL_OPCIONAL='||to_char((coalesce(:DATA_FINAL_OPCIONAL, current_date))::date,'mm/dd/yyyy')
-||'&texto='||sentencas_conhecimento_pendentes_por_magistrado.pendentes_sentenca as "Ver Pendentes"
-FROM  (
-    SELECT  sentencas_conhecimento_pendente.id_pessoa_magistrado, 
-        COUNT(sentencas_conhecimento_pendente.id_pessoa_magistrado) AS pendentes_sentenca
-    FROM sentencas_conhecimento_pendente
-    GROUP BY sentencas_conhecimento_pendente.id_pessoa_magistrado
-) sentencas_conhecimento_pendentes_por_magistrado  
+||
+CASE
+    WHEN :DATA_FINAL_OPCIONAL::date IS NULL
+    THEN ''  
+    ELSE '&DATA_FINAL_OPCIONAL='||to_char((coalesce(:DATA_FINAL_OPCIONAL, current_date))::date,'mm/dd/yyyy')
+END
+||'&texto='||sentencas_conhecimento_pendentes_por_magistrado.pendentes_sentenca as "Ver Pendentes",
+sentencas_conhecimento_pendentes_por_magistrado.pendente_mais_antigo AS "Sentença pendente mais antiga"
+FROM  sentencas_conhecimento_pendentes_por_magistrado
 INNER JOIN tb_usuario_login ul ON (ul.id_usuario = sentencas_conhecimento_pendentes_por_magistrado.id_pessoa_magistrado)
 ORDER BY ul.ds_nome
+)

@@ -12,7 +12,7 @@ SELECT  concluso.id_pessoa_magistrado,
     ON (pen.id_processo_evento = concluso.id_processo_evento 
         AND pen.id_processo_evento_excludente IS NULL
     	and pen.id_evento = 51 -- esse é o codigo do movimento. se esse id mudar tem de ir na tb_evento_processual.cd_evento
-        AND pen.ds_texto_final_interno ilike 'Concluso%proferir senten_a%')
+        AND pen.ds_texto_final_interno ilike 'Concluso%julgamento%proferir senten_a%')
     INNER JOIN tb_processo p ON (p.id_processo = pen.id_processo)
     inner join tb_processo_trf ptrf on ptrf.id_processo_trf = p.id_processo
     INNER JOIN tb_classe_judicial cj 
@@ -65,27 +65,62 @@ SELECT  concluso.id_pessoa_magistrado,
         )
     WHERE
         concluso.id_pessoa_magistrado  = coalesce(:MAGISTRADO, concluso.id_pessoa_magistrado)
-        -- AND p.id_agrupamento_fase = 2  -- nao da pra usar a faase, pq tem de ver a situacao do processo na data escolhida pelo usuario.
-        -- somente conhecimento -sub-consulta abaixo
-        AND (
-        SELECT (ev.cd_evento IN ('50129', '26')) FROM tb_processo_evento pe 
-            INNER JOIN tb_evento_processual ev ON 
-                (pe.id_evento = ev.id_evento_processual)
-            WHERE pen.id_processo = pe.id_processo
-                AND pe.dt_atualizacao::date <= (coalesce(:DATA_FINAL_OPCIONAL, current_date))::date
-                AND pe.id_processo_evento_excludente IS NULL
-                AND ev.cd_evento IN 
-                    (
+        AND
+        (CASE
+            WHEN :DATA_FINAL_OPCIONAL::date IS NULL
+            THEN p.id_agrupamento_fase = 2  
+            ELSE
+            ( 
+            SELECT (
+                (CASE
+                    -- CLE - Convertida a tramitação do processo do meio físico para o eletrônico 
+                    WHEN ev.cd_evento = '50081'
+                    THEN 
+                    EXISTS (
+                        -- So CLE criada no Conhecimento
+                        select 1 from tb_processo_clet 
+                        where id_processo_trf = pe.id_processo 
+                        and id_fase_processual_inicio_clet = 2
+                    )
+                    ELSE ev.cd_evento IN ('50129', '26', '50128')
+                END)               
+                ) FROM tb_processo_evento pe 
+                INNER JOIN tb_evento_processual ev ON 
+                    (pe.id_evento = ev.id_evento_processual)
+                WHERE pen.id_processo = pe.id_processo
+                    AND pe.dt_atualizacao::date <= (coalesce(:DATA_FINAL_OPCIONAL, current_date))::date
+                    AND pe.id_processo_evento_excludente IS NULL
+                    AND 
+                    (   ev.cd_evento IN 
+                        (
                         -- DISTRIBUIDO_POR("26", "Distribuído por #{tipo de distribuição}"),
                         -- ARQUIVADOS_OS_AUTOS_DEFINITIVAMENTE ("246", "Arquivados os autos definitivamente"),
+                        -- ARQUIVADOS_OS_AUTOS_PROVISORIAMENTE ("245", "Arquivados os autos provisoriamente"),
                         -- CANCELADA_A_LIQUIDACAO("50129", "Cancelada a liquidação"),
                         -- INICIADA_A_EXECUCAO ("11385", "Iniciada a execução #{tipo de execução}"),
                         -- INICIADA_A_LIQUIDACAO ("11384", "Iniciada a liquidação #{tipo de liquidação}"),
-                        '50129', '26', '11384', '11385', '246'
+                        '50129', '11384', '11385', '246', '245', '26', '50081'
+                        )
+                        OR
+                        (
+                            -- foi cancelada a execucao e nao passou pela liq (se tem sentenca liquida). 
+                            -- Nesse caso, volta direto para o Conhecimento
+                            -- CANCELADA_A_EXECUCAO("50128", "Cancelada a execução"),
+                            ev.cd_evento = '50128' 
+                            AND NOT EXISTS(
+                                SELECT 1 FROM tb_processo_evento iniciada_liq
+                                    INNER JOIN tb_evento_processual ev 
+                                        ON (iniciada_liq.id_evento = ev.id_evento_processual)
+                                WHERE   iniciada_liq.id_processo = pe.id_processo
+                                        AND iniciada_liq.dt_atualizacao < pe.dt_atualizacao
+                                        AND ev.cd_evento = '11384'
+                            )
+                        )
                     )
                 ORDER BY pe.dt_atualizacao DESC
                 LIMIT 1
-        )
+            )
+        END)
         AND pen.dt_atualizacao::date <= (coalesce(:DATA_FINAL_OPCIONAL, current_date))::date
         AND NOT EXISTS(
             SELECT 1 FROM tb_processo_evento pe 
