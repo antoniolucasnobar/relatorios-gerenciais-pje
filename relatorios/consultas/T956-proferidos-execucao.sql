@@ -2,7 +2,7 @@
 
 -- explain analyze
 
-WITH tipos_documento AS (
+WITH tipos_doc_embargos_exec_impug_sentenca_liq AS (
     --16	Embargos à Execução	S			7143
     --32	Impugnação à Sentença de Liquidação	S			53
     select id_tipo_processo_documento 
@@ -10,7 +10,7 @@ WITH tipos_documento AS (
     where cd_documento = '7007' 
         and in_ativo = 'S'
 ),
-tipos_movimento AS (
+movimentos_julgado_incidentes_execucao AS (
     SELECT ev.id_evento_processual 
     FROM tb_evento_processual ev 
     WHERE 
@@ -25,7 +25,7 @@ tipos_movimento AS (
         ('219', '221', '220', '50013', '50050', '50048')
 ) 
 ,
- proferidas AS (
+ incidentes_execucao_julgados AS (
     select 
     -- ul.ds_nome, 
     assin.id_pessoa, 
@@ -40,7 +40,7 @@ tipos_movimento AS (
     where doc.in_ativo = 'S'
     -- 62
     AND doc.id_tipo_processo_documento =  (
-                SELECT id_tipo_processo_documento FROM tipos_documento
+                SELECT id_tipo_processo_documento FROM tipos_doc_embargos_exec_impug_sentenca_liq
             )
     AND assin.id_pessoa = coalesce(:MAGISTRADO, assin.id_pessoa)
     -- and tipo.cd_documento = '7007'
@@ -53,7 +53,7 @@ tipos_movimento AS (
             pen.id_processo = doc.id_processo 
             AND pen.id_processo_evento_excludente IS NULL
             and pen.id_evento IN (
-                SELECT id_evento_processual FROM tipos_movimento
+                SELECT id_evento_processual FROM movimentos_julgado_incidentes_execucao
             )
             AND date(doc.dt_juntada) = date(pen.dt_atualizacao)
             AND  pen.ds_texto_final_interno ilike ANY (
@@ -65,17 +65,17 @@ tipos_movimento AS (
 )
 SELECT ul.ds_nome AS "Magistrado", 
 -- julgados_por_magistrado.total,
-    julgados_por_magistrado.julgados_execucao AS "Proferidas"
+    incidentes_execucao_julgados_por_magistrado.julgados_execucao AS "Proferidas"
     ,
-    '$URL/execucao/T957?MAGISTRADO='||julgados_por_magistrado.id_pessoa
+    '$URL/execucao/T957?MAGISTRADO='||incidentes_execucao_julgados_por_magistrado.id_pessoa
     ||'&DATA_INICIAL='||to_char(:DATA_INICIAL::date,'mm/dd/yyyy')
     ||'&DATA_FINAL='||to_char(:DATA_FINAL::date,'mm/dd/yyyy')
-    ||'&texto='||julgados_por_magistrado.julgados_execucao as "Ver Proferidas"
+    ||'&texto='||incidentes_execucao_julgados_por_magistrado.julgados_execucao as "Ver Proferidas"
 FROM  (
-    SELECT  proferidas.id_pessoa, 
-        COUNT(proferidas.id_pessoa) AS julgados_execucao
-    FROM proferidas
-    GROUP BY proferidas.id_pessoa
-) julgados_por_magistrado  
-    INNER JOIN tb_usuario_login ul on (ul.id_usuario = julgados_por_magistrado.id_pessoa)
+    SELECT  incidentes_execucao_julgados.id_pessoa,
+        COUNT(incidentes_execucao_julgados.id_pessoa) AS julgados_execucao
+    FROM incidentes_execucao_julgados
+    GROUP BY incidentes_execucao_julgados.id_pessoa
+) incidentes_execucao_julgados_por_magistrado
+    INNER JOIN tb_usuario_login ul on (ul.id_usuario = incidentes_execucao_julgados_por_magistrado.id_pessoa)
 ORDER BY ul.ds_nome
