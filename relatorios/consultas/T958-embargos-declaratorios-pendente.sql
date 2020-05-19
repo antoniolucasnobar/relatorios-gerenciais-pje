@@ -65,31 +65,16 @@ SELECT  concluso.id_pessoa_magistrado,
                 (
                 -- NÃO Existir um movimento dentre os seguintes, 
                 --  entre a data de juntada da peticao e o concluso
-                -- 50086 - Encerrada a conclusão
                 -- 198 - Acolhidos os Embargos de Declaração de #{nome da parte}  
                 -- 871 - Acolhidos em parte os Embargos de Declaração de #{nome da parte}  
                 -- 200 - Não acolhidos os Embargos de Declaração de #{nome da parte}  
                 -- 235 - Não conhecido(s) o(s) #{nome do recurso} / #{nome do conflito} de #{nome da parte} / #{nome da pessoa} 
                 -- 230 - Prejudicado(s) o(s) #{nome do recurso} de #{nome da parte}  
-                    ev.cd_evento = '50086'
-                    OR 
                     (
                         --nome do complemento bate com Embargos de Declara__o%
                         ev.cd_evento IN ('198', '871', '200', '235', '230') AND
                         pe.ds_texto_final_interno ilike '%Embargos de Declara__o%'
                     )
-                    -- OR
-                    -- (
-                    --     ev.cd_evento = '51'AND
-                    --     pe.ds_texto_final_interno ilike 
-                    --         'Conclusos os autos para%dos Embargos de Declara__o%'
-                    -- )
-                    -- OR
-                    -- ( -- houve alteração do tipo de petição
-                    --     ev.cd_evento = '50088'AND
-                    --     pe.ds_texto_final_interno ilike 
-                    --         'Alterado o tipo de petição de Embargos de Declara__o%'
-                    -- )
                 )  
         )
         ORDER BY doc.dt_juntada DESC LIMIT 1
