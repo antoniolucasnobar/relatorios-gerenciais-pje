@@ -1,4 +1,4 @@
--- R137698 - Relatório SAO - SENTENÇAS DE CONHECIMENTO sem movimento.
+-- [R137698][T962] - Relatório SAO - SENTENÇAS DE CONHECIMENTO sem movimento.
 
 -- explain analyze
 WITH sentencas_sem_movimentos AS (
@@ -93,4 +93,4 @@ FROM sentencas_sem_movimentos
     inner join tb_orgao_julgador oj on oj.id_orgao_julgador = ptrf.id_orgao_julgador
     INNER JOIN tb_classe_judicial cj ON (cj.id_classe_judicial = ptrf.id_classe_judicial)
     inner join tb_processo_tarefa pt on pt.id_processo_trf = p.id_processo    
-ORDER BY sentencas_sem_movimentos.dt_juntada, ul.ds_nome
+ORDER BY "Unidade", ul.ds_nome, sentencas_sem_movimentos.dt_juntada
