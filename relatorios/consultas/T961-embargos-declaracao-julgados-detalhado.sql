@@ -5,13 +5,13 @@
 -- 235 - Não conhecido(s) o(s) #{nome do recurso} / #{nome do conflito} de #{nome da parte} / #{nome da pessoa} 
 -- explain
 WITH RECURSIVE
-tipo_documento_embargo_declaracao AS (
-    --23	Embargos de Declaração	S			49
-    select id_tipo_processo_documento 
-        from tb_tipo_processo_documento 
-    where cd_documento = '49' 
-        and in_ativo = 'S'
-),
+-- tipo_documento_embargo_declaracao AS (
+--     --23	Embargos de Declaração	S			49
+--     select id_tipo_processo_documento
+--         from tb_tipo_processo_documento
+--     where cd_documento = '49'
+--         and in_ativo = 'S'
+-- ),
 tipo_documento_sentenca AS (
     --62	Sentença	S			7007
     select id_tipo_processo_documento 
@@ -158,7 +158,8 @@ embargos_declaracao_julgados AS (
 )
 , eds_julgados AS (
     SELECT peticoes_eds.id_processo,
-           count(peticoes_eds.id_processo) AS numero_julgados
+           count(peticoes_eds.id_processo) AS numero_julgados,
+           MAX(peticoes_eds.dt_j) AS data_ultimo_julgado
     FROM peticoes_eds
     WHERE peticoes_eds.dt_j::date BETWEEN
               COALESCE(:DATA_INICIAL_OPCIONAL, date_trunc('month', current_date))::date
@@ -166,22 +167,18 @@ embargos_declaracao_julgados AS (
               COALESCE(:DATA_OPCIONAL_FINAL, CURRENT_DATE)::date
     GROUP BY peticoes_eds.id_processo
 )
--- , eds_por_magistrado AS (
---     SELECT edj.id_pessoa,
---            SUM(eds_julgados.numero_julgados) AS julgados_por_mag
---     FROM embargos_declaracao_julgados edj
---     INNER JOIN eds_julgados ON (eds_julgados.id_processo = edj.id_processo)
---     GROUP BY edj.id_pessoa
--- )
+, eds_assinados AS (SELECT edj.id_processo, edj.id_pessoa
+                       FROM embargos_declaracao_julgados edj
+                       GROUP BY edj.id_processo, edj.id_pessoa
+)
 SELECT 'http://processo='||p.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_DETALHES_PROCESSO' as " ",
          'http://processo='||p.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_TAREFA&texto='
-         ||cj.ds_classe_judicial_sigla||' '
+--          ||cj.ds_classe_judicial_sigla||' '
          ||p.nr_processo as "Processo",
     REPLACE(oj.ds_orgao_julgador, 'VARA DO TRABALHO', 'VT') AS "Unidade",
     ul.ds_nome AS "Magistrado",
-    embargos_declaracao_julgados.dt_juntada AS "Julgado em",
+    to_char(eds_julgados.data_ultimo_julgado, 'dd/MM/yyyy')  AS "Julgado em",
     eds_julgados.numero_julgados AS "Quantidade EDs",
---     embargos_declaracao_julgados.ds_texto_final_interno AS "Movimento de Solução",
     pt.nm_tarefa as "Tarefa Atual"
     ,
    '$URL/execucao/T964?NUM_PROCESSO='||p.nr_processo
@@ -189,12 +186,14 @@ SELECT 'http://processo='||p.nr_processo||'&grau=primeirograu&recurso=$RECURSO_P
        ||'&DATA_INICIAL_OPCIONAL='||to_char(coalesce(:DATA_INICIAL_OPCIONAL, date_trunc('month', current_date))::date,'mm/dd/yyyy')
        ||'&DATA_OPCIONAL_FINAL='||to_char((coalesce(:DATA_OPCIONAL_FINAL, current_date))::date,'mm/dd/yyyy')
        ||'&texto='||eds_julgados.numero_julgados as "Ver EDs Julgados do Processo"
-FROM embargos_declaracao_julgados
-    INNER JOIN eds_julgados ON (eds_julgados.id_processo = embargos_declaracao_julgados.id_processo)
-    INNER JOIN tb_usuario_login ul on (ul.id_usuario = embargos_declaracao_julgados.id_pessoa)
-    INNER JOIN tb_processo p ON (p.id_processo = embargos_declaracao_julgados.id_processo)
+FROM
+    eds_assinados
+    INNER JOIN eds_julgados ON (eds_julgados.id_processo = eds_assinados.id_processo)
+    INNER JOIN tb_usuario_login ul on (ul.id_usuario = eds_assinados.id_pessoa)
+    INNER JOIN tb_processo p ON (p.id_processo = eds_assinados.id_processo)
     inner join tb_processo_trf ptrf on ptrf.id_processo_trf = p.id_processo
     inner join tb_orgao_julgador oj on oj.id_orgao_julgador = ptrf.id_orgao_julgador
     INNER JOIN tb_classe_judicial cj ON (cj.id_classe_judicial = ptrf.id_classe_judicial)
     inner join tb_processo_tarefa pt on pt.id_processo_trf = p.id_processo
-ORDER BY ul.ds_nome, embargos_declaracao_julgados.dt_juntada::date, p.nr_processo
+ORDER BY
+    eds_julgados.data_ultimo_julgado::date, ul.ds_nome, p.nr_processo

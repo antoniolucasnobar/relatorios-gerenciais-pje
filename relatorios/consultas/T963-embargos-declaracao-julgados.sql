@@ -156,9 +156,10 @@ movimentos_embargos_declaracao_julgados AS (
         ORDER BY ed.id_processo, ed.dt_atualizacao, julgamento.id_processo_evento
     )
 )
-   , eds_julgados AS (
+, eds_julgados AS (
     SELECT peticoes_eds.id_processo,
-           count(peticoes_eds.id_processo) AS numero_julgados
+           count(peticoes_eds.id_processo) AS numero_julgados,
+           MAX(peticoes_eds.dt_j) AS data_ultimo_julgado
     FROM peticoes_eds
     WHERE peticoes_eds.dt_j::date BETWEEN
               COALESCE(:DATA_INICIAL_OPCIONAL, date_trunc('month', current_date))::date
@@ -166,11 +167,15 @@ movimentos_embargos_declaracao_julgados AS (
               COALESCE(:DATA_OPCIONAL_FINAL, CURRENT_DATE)::date
     GROUP BY peticoes_eds.id_processo
 )
-   , eds_por_magistrado AS (
+, eds_assinados AS (SELECT edj.id_processo, edj.id_pessoa
+                       FROM embargos_declaracao_julgados edj
+                       GROUP BY edj.id_processo, edj.id_pessoa
+)
+, eds_por_magistrado AS (
     SELECT edj.id_pessoa,
            SUM(eds_julgados.numero_julgados) AS quantidade_julgado
-    FROM embargos_declaracao_julgados edj
-             INNER JOIN eds_julgados ON (eds_julgados.id_processo = edj.id_processo)
+    FROM eds_assinados edj
+        INNER JOIN eds_julgados ON (eds_julgados.id_processo = edj.id_processo)
     GROUP BY edj.id_pessoa
 )
 SELECT 
