@@ -5,13 +5,13 @@
 -- 235 - Não conhecido(s) o(s) #{nome do recurso} / #{nome do conflito} de #{nome da parte} / #{nome da pessoa} 
 -- explain
 WITH RECURSIVE
-tipo_documento_embargo_declaracao AS (
-    --23	Embargos de Declaração	S			49
-    select id_tipo_processo_documento 
-        from tb_tipo_processo_documento 
-    where cd_documento = '49' 
-        and in_ativo = 'S'
-),
+-- tipo_documento_embargo_declaracao AS (
+--     --23	Embargos de Declaração	S			49
+--     select id_tipo_processo_documento
+--         from tb_tipo_processo_documento
+--     where cd_documento = '49'
+--         and in_ativo = 'S'
+-- ),
 tipo_documento_sentenca AS (
     --62	Sentença	S			7007
     select id_tipo_processo_documento 
@@ -59,7 +59,12 @@ movimentos_embargos_declaracao_julgados AS (
           and doc.dt_juntada :: date between coalesce(:DATA_INICIAL_OPCIONAL, date_trunc('month', current_date))::date and (coalesce(:DATA_OPCIONAL_FINAL, current_date))::date
           and concluso.ds_texto_final_interno ilike 'Conclusos os autos para % dos Embargos de Declara__o%'
     )
-   , peticoes_eds (id_processo, id_peticao, id_julgamento) AS (
+, processos_com_eds_assinados AS (
+    SELECT edj.id_processo, edj.id_pessoa
+    FROM embargos_declaracao_julgados edj
+    GROUP BY edj.id_processo, edj.id_pessoa
+)
+, peticoes_eds (id_processo, id_peticao, id_julgamento) AS (
     (
         SELECT DISTINCT ON (ed.id_processo) ed.id_processo
                                           , ed.id_processo_evento             AS id_peticao
@@ -90,7 +95,7 @@ movimentos_embargos_declaracao_julgados AS (
                  )
                 )
         WHERE ed.id_processo IN (
-            SELECT edj.id_processo FROM embargos_declaracao_julgados edj
+            SELECT id_processo FROM processos_com_eds_assinados
         )
           AND ed.dt_atualizacao::date <= COALESCE(:DATA_OPCIONAL_FINAL, CURRENT_DATE)::date
 
@@ -167,14 +172,10 @@ movimentos_embargos_declaracao_julgados AS (
               COALESCE(:DATA_OPCIONAL_FINAL, CURRENT_DATE)::date
     GROUP BY peticoes_eds.id_processo
 )
-, eds_assinados AS (SELECT edj.id_processo, edj.id_pessoa
-                       FROM embargos_declaracao_julgados edj
-                       GROUP BY edj.id_processo, edj.id_pessoa
-)
 , eds_por_magistrado AS (
     SELECT edj.id_pessoa,
            SUM(eds_julgados.numero_julgados) AS quantidade_julgado
-    FROM eds_assinados edj
+    FROM processos_com_eds_assinados edj
         INNER JOIN eds_julgados ON (eds_julgados.id_processo = edj.id_processo)
     GROUP BY edj.id_pessoa
 )

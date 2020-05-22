@@ -59,6 +59,11 @@ embargos_declaracao_julgados AS (
       and doc.dt_juntada :: date between coalesce(:DATA_INICIAL_OPCIONAL, date_trunc('month', current_date))::date and (coalesce(:DATA_OPCIONAL_FINAL, current_date))::date
       and concluso.ds_texto_final_interno ilike 'Conclusos os autos para % dos Embargos de Declara__o%'
 )
+, processos_com_eds_assinados AS (
+    SELECT edj.id_processo, edj.id_pessoa
+    FROM embargos_declaracao_julgados edj
+    GROUP BY edj.id_processo, edj.id_pessoa
+)
 , peticoes_eds (id_processo, id_peticao, id_julgamento) AS (
     (
         SELECT DISTINCT ON (ed.id_processo) ed.id_processo
@@ -90,8 +95,8 @@ embargos_declaracao_julgados AS (
                  )
                 )
         WHERE ed.id_processo IN (
-                                 SELECT edj.id_processo FROM embargos_declaracao_julgados edj
-            )
+            SELECT id_processo FROM processos_com_eds_assinados
+        )
           AND ed.dt_atualizacao::date <= COALESCE(:DATA_OPCIONAL_FINAL, CURRENT_DATE)::date
 
           AND (
@@ -167,10 +172,7 @@ embargos_declaracao_julgados AS (
               COALESCE(:DATA_OPCIONAL_FINAL, CURRENT_DATE)::date
     GROUP BY peticoes_eds.id_processo
 )
-, eds_assinados AS (SELECT edj.id_processo, edj.id_pessoa
-                       FROM embargos_declaracao_julgados edj
-                       GROUP BY edj.id_processo, edj.id_pessoa
-)
+
 SELECT
     'TOTAL' AS " ",
 '-'  as "Processo",
@@ -201,10 +203,10 @@ UNION ALL
                || '&DATA_OPCIONAL_FINAL=' || to_char((coalesce(:DATA_OPCIONAL_FINAL, current_date))::date, 'mm/dd/yyyy')
                || '&texto=' ||
            eds_julgados.numero_julgados                                 as "Ver EDs Julgados do Processo"
-    FROM eds_assinados
-             INNER JOIN eds_julgados ON (eds_julgados.id_processo = eds_assinados.id_processo)
-             INNER JOIN tb_usuario_login ul on (ul.id_usuario = eds_assinados.id_pessoa)
-             INNER JOIN tb_processo p ON (p.id_processo = eds_assinados.id_processo)
+    FROM processos_com_eds_assinados
+             INNER JOIN eds_julgados ON (eds_julgados.id_processo = processos_com_eds_assinados.id_processo)
+             INNER JOIN tb_usuario_login ul on (ul.id_usuario = processos_com_eds_assinados.id_pessoa)
+             INNER JOIN tb_processo p ON (p.id_processo = processos_com_eds_assinados.id_processo)
              inner join tb_processo_trf ptrf on ptrf.id_processo_trf = p.id_processo
              inner join tb_orgao_julgador oj on oj.id_orgao_julgador = ptrf.id_orgao_julgador
              INNER JOIN tb_classe_judicial cj ON (cj.id_classe_judicial = ptrf.id_classe_judicial)

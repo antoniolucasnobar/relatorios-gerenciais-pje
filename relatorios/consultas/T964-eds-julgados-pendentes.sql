@@ -11,7 +11,12 @@ WITH RECURSIVE movimentos_embargos_declaracao_julgados AS (
         ev.cd_evento IN
         ('198', '871', '200', '235')
 )
-   , peticoes_eds (id_processo, id_peticao, id_julgamento) AS (
+   -- diferente dos outros relatorios, pois esse busca por processo
+   -- usando o mesmo nome para simplificar manutencao dos relatorios: T961, T963 e T964
+, processos_com_eds_assinados AS (
+    SELECT id_processo FROM tb_processo WHERE nr_processo = :NUM_PROCESSO
+)
+, peticoes_eds (id_processo, id_peticao, id_julgamento) AS (
     (
         SELECT DISTINCT ON (ed.id_processo) ed.id_processo
              , ed.id_processo_evento             AS id_peticao
@@ -41,8 +46,8 @@ WITH RECURSIVE movimentos_embargos_declaracao_julgados AS (
                          )
                  )
                 )
-        WHERE ed.id_processo = (
-                                  SELECT id_processo FROM tb_processo WHERE nr_processo = :NUM_PROCESSO
+        WHERE ed.id_processo IN (
+            SELECT id_processo FROM processos_com_eds_assinados
         )
           AND ed.dt_atualizacao::date <= COALESCE(:DATA_OPCIONAL_FINAL, CURRENT_DATE)::date
 
@@ -108,19 +113,6 @@ WITH RECURSIVE movimentos_embargos_declaracao_julgados AS (
         ORDER BY ed.id_processo, ed.dt_atualizacao, julgamento.id_processo_evento
     )
 )
--- , eds_julgados AS (
---     SELECT peticoes_eds.id_processo,
---            count(peticoes_eds.id_processo) AS numero_julgados
---     FROM peticoes_eds
---     WHERE peticoes_eds.dt_j IS NOT NULL
---     GROUP BY peticoes_eds.id_processo
--- )
--- lista qtd de EDs por processo
--- SELECT 'http://processo='||p.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_DETALHES_PROCESSO' as " ",
---        p.nr_processo,
---        eds_julgados.*
--- FROM eds_julgados
---  INNER JOIN tb_processo p ON (p.id_processo = eds_julgados.id_processo)
 -- abaixo da pra ver cada ED julgado por processo
 SELECT 'http://processo='||p.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_DETALHES_PROCESSO' as " ",
        p.nr_processo AS "Número do Processo",
@@ -130,6 +122,9 @@ SELECT 'http://processo='||p.nr_processo||'&grau=primeirograu&recurso=$RECURSO_P
        peticoes_eds.tx_j AS "Movimento Julgamento ED"
 FROM peticoes_eds
          INNER JOIN tb_processo p ON (p.id_processo = peticoes_eds.id_processo)
-
+WHERE peticoes_eds.dt_j::date BETWEEN
+    COALESCE(:DATA_INICIAL_OPCIONAL, date_trunc('month', current_date))::date
+  AND
+    COALESCE(:DATA_OPCIONAL_FINAL, CURRENT_DATE)::date
 ORDER BY 2, peticoes_eds.dt_j
 
