@@ -1,4 +1,4 @@
--- R136875 - EMBARGOS DECLARATÓRIOS JULGADOS
+-- [R136875][T961] - EMBARGOS DECLARATÓRIOS JULGADOS
 -- 198 - Acolhidos os Embargos de Declaração de #{nome da parte}  
 -- 871 - Acolhidos em parte os Embargos de Declaração de #{nome da parte}  
 -- 200 - Não acolhidos os Embargos de Declaração de #{nome da parte}  
@@ -171,29 +171,43 @@ embargos_declaracao_julgados AS (
                        FROM embargos_declaracao_julgados edj
                        GROUP BY edj.id_processo, edj.id_pessoa
 )
-SELECT 'http://processo='||p.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_DETALHES_PROCESSO' as " ",
-         'http://processo='||p.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_TAREFA&texto='
+SELECT
+    'TOTAL' AS " ",
+'-'  as "Processo",
+'-'  AS "Unidade",
+'-'  AS "Magistrado",
+'-'  AS "Julgado em",
+SUM(eds_julgados.numero_julgados)  AS "Quantidade EDs",
+'-'  as "Tarefa Atual",
+'-'  as "Ver EDs Julgados do Processo"
+FROM eds_julgados
+UNION ALL
+(
+    SELECT 'http://processo=' || p.nr_processo || '&grau=primeirograu&recurso=$RECURSO_PJE_DETALHES_PROCESSO' as " ",
+           'http://processo=' || p.nr_processo || '&grau=primeirograu&recurso=$RECURSO_PJE_TAREFA&texto='
 --          ||cj.ds_classe_judicial_sigla||' '
-         ||p.nr_processo as "Processo",
-    REPLACE(oj.ds_orgao_julgador, 'VARA DO TRABALHO', 'VT') AS "Unidade",
-    ul.ds_nome AS "Magistrado",
-    to_char(eds_julgados.data_ultimo_julgado, 'dd/MM/yyyy')  AS "Julgado em",
-    eds_julgados.numero_julgados AS "Quantidade EDs",
-    pt.nm_tarefa as "Tarefa Atual"
-    ,
-   '$URL/execucao/T964?NUM_PROCESSO='||p.nr_processo
-       -- MAGISTRADO='||eds_julgados.id_pessoa
-       ||'&DATA_INICIAL_OPCIONAL='||to_char(coalesce(:DATA_INICIAL_OPCIONAL, date_trunc('month', current_date))::date,'mm/dd/yyyy')
-       ||'&DATA_OPCIONAL_FINAL='||to_char((coalesce(:DATA_OPCIONAL_FINAL, current_date))::date,'mm/dd/yyyy')
-       ||'&texto='||eds_julgados.numero_julgados as "Ver EDs Julgados do Processo"
-FROM
-    eds_assinados
-    INNER JOIN eds_julgados ON (eds_julgados.id_processo = eds_assinados.id_processo)
-    INNER JOIN tb_usuario_login ul on (ul.id_usuario = eds_assinados.id_pessoa)
-    INNER JOIN tb_processo p ON (p.id_processo = eds_assinados.id_processo)
-    inner join tb_processo_trf ptrf on ptrf.id_processo_trf = p.id_processo
-    inner join tb_orgao_julgador oj on oj.id_orgao_julgador = ptrf.id_orgao_julgador
-    INNER JOIN tb_classe_judicial cj ON (cj.id_classe_judicial = ptrf.id_classe_judicial)
-    inner join tb_processo_tarefa pt on pt.id_processo_trf = p.id_processo
-ORDER BY
-    eds_julgados.data_ultimo_julgado::date, ul.ds_nome, p.nr_processo
+               ||
+           p.nr_processo                                               as "Processo",
+           REPLACE(oj.ds_orgao_julgador, 'VARA DO TRABALHO', 'VT')     AS "Unidade",
+           ul.ds_nome                                                  AS "Magistrado",
+           to_char(eds_julgados.data_ultimo_julgado, 'dd/MM/yyyy')     AS "Julgado em",
+           eds_julgados.numero_julgados                                AS "Quantidade EDs",
+           pt.nm_tarefa                                                as "Tarefa Atual"
+            ,
+           '$URL/execucao/T964?NUM_PROCESSO=' || p.nr_processo
+               -- MAGISTRADO='||eds_julgados.id_pessoa
+               || '&DATA_INICIAL_OPCIONAL=' ||
+           to_char(coalesce(:DATA_INICIAL_OPCIONAL, date_trunc('month', current_date))::date, 'mm/dd/yyyy')
+               || '&DATA_OPCIONAL_FINAL=' || to_char((coalesce(:DATA_OPCIONAL_FINAL, current_date))::date, 'mm/dd/yyyy')
+               || '&texto=' ||
+           eds_julgados.numero_julgados                                 as "Ver EDs Julgados do Processo"
+    FROM eds_assinados
+             INNER JOIN eds_julgados ON (eds_julgados.id_processo = eds_assinados.id_processo)
+             INNER JOIN tb_usuario_login ul on (ul.id_usuario = eds_assinados.id_pessoa)
+             INNER JOIN tb_processo p ON (p.id_processo = eds_assinados.id_processo)
+             inner join tb_processo_trf ptrf on ptrf.id_processo_trf = p.id_processo
+             inner join tb_orgao_julgador oj on oj.id_orgao_julgador = ptrf.id_orgao_julgador
+             INNER JOIN tb_classe_judicial cj ON (cj.id_classe_judicial = ptrf.id_classe_judicial)
+             inner join tb_processo_tarefa pt on pt.id_processo_trf = p.id_processo
+    ORDER BY eds_julgados.data_ultimo_julgado::date, ul.ds_nome, p.nr_processo
+)
