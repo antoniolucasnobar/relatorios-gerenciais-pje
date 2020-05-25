@@ -5,13 +5,6 @@
 -- 235 - Não conhecido(s) o(s) #{nome do recurso} / #{nome do conflito} de #{nome da parte} / #{nome da pessoa} 
 -- explain
 WITH RECURSIVE
--- tipo_documento_embargo_declaracao AS (
---     --23	Embargos de Declaração	S			49
---     select id_tipo_processo_documento
---         from tb_tipo_processo_documento
---     where cd_documento = '49'
---         and in_ativo = 'S'
--- ),
 tipo_documento_sentenca AS (
     --62	Sentença	S			7007
     select id_tipo_processo_documento 
@@ -70,9 +63,10 @@ embargos_declaracao_julgados AS (
                                           , ed.id_processo_evento             AS id_peticao
                                           , julgamento.id_processo_evento     AS id_julgamento
                                           , ed.dt_atualizacao                 AS data_ed
-                                          , ed.ds_texto_final_externo AS tx_ed
+                                          , ed.ds_texto_final_externo         AS tx_ed
                                           , julgamento.dt_atualizacao         AS dt_j
                                           , julgamento.ds_texto_final_externo AS tx_j
+                                          , julgamento.id_evento              AS mov_julgamento
         FROM tb_processo_evento ed
                  LEFT JOIN tb_processo_evento julgamento ON
             (ed.id_processo = julgamento.id_processo
@@ -118,9 +112,10 @@ embargos_declaracao_julgados AS (
                                           , ed.id_processo_evento             AS id_peticao
                                           , julgamento.id_processo_evento     AS id_j
                                           , ed.dt_atualizacao                 AS data_ed
-                                          , ed.ds_texto_final_externo AS tx_ed
+                                          , ed.ds_texto_final_externo         AS tx_ed
                                           , julgamento.dt_atualizacao         AS dt_j
                                           , julgamento.ds_texto_final_externo AS tx_j
+                                          , julgamento.id_evento              AS mov_julgamento
         FROM peticoes_eds pj
                  INNER JOIN tb_processo_evento ed ON (ed.id_processo = pj.id_processo)
                  LEFT JOIN tb_processo_evento julgamento ON
@@ -161,16 +156,20 @@ embargos_declaracao_julgados AS (
         ORDER BY ed.id_processo, ed.dt_atualizacao, julgamento.id_processo_evento
     )
 )
+, eds_sem_alterada_peticao AS (
+    SELECT peticoes_eds.* FROM peticoes_eds
+    WHERE peticoes_eds.mov_julgamento IS DISTINCT FROM 50088
+)
 , eds_julgados AS (
-    SELECT peticoes_eds.id_processo,
-           count(peticoes_eds.id_processo) AS numero_julgados,
-           MAX(peticoes_eds.dt_j) AS data_ultimo_julgado
-    FROM peticoes_eds
-    WHERE peticoes_eds.dt_j::date BETWEEN
+    SELECT eds_sem_alterada_peticao.id_processo,
+           count(eds_sem_alterada_peticao.id_processo) AS numero_julgados,
+           eds_sem_alterada_peticao.dt_j AS data_ultimo_julgado
+    FROM eds_sem_alterada_peticao
+    WHERE eds_sem_alterada_peticao.dt_j::date BETWEEN
               COALESCE(:DATA_INICIAL_OPCIONAL, date_trunc('month', current_date))::date
               AND
               COALESCE(:DATA_OPCIONAL_FINAL, CURRENT_DATE)::date
-    GROUP BY peticoes_eds.id_processo
+    GROUP BY eds_sem_alterada_peticao.id_processo, eds_sem_alterada_peticao.dt_j
 )
 
 SELECT
@@ -179,8 +178,8 @@ SELECT
 '-'  AS "Unidade",
 '-'  AS "Magistrado",
 '-'  AS "Julgado em",
-SUM(eds_julgados.numero_julgados)  AS "Quantidade EDs",
 '-'  as "Tarefa Atual",
+SUM(eds_julgados.numero_julgados)  AS "Quantidade",
 '-'  as "Ver EDs Julgados do Processo"
 FROM eds_julgados
 UNION ALL
@@ -188,13 +187,12 @@ UNION ALL
     SELECT 'http://processo=' || p.nr_processo || '&grau=primeirograu&recurso=$RECURSO_PJE_DETALHES_PROCESSO' as " ",
            'http://processo=' || p.nr_processo || '&grau=primeirograu&recurso=$RECURSO_PJE_TAREFA&texto='
 --          ||cj.ds_classe_judicial_sigla||' '
-               ||
-           p.nr_processo                                               as "Processo",
-           REPLACE(oj.ds_orgao_julgador, 'VARA DO TRABALHO', 'VT')     AS "Unidade",
-           ul.ds_nome                                                  AS "Magistrado",
-           to_char(eds_julgados.data_ultimo_julgado, 'dd/MM/yyyy')     AS "Julgado em",
-           eds_julgados.numero_julgados                                AS "Quantidade EDs",
-           pt.nm_tarefa                                                as "Tarefa Atual"
+            || p.nr_processo                                               as "Processo"
+           , REPLACE(oj.ds_orgao_julgador, 'VARA DO TRABALHO', 'VT')     AS "Unidade"
+           , ul.ds_nome_consulta                                         AS "Magistrado"
+           , to_char(eds_julgados.data_ultimo_julgado, 'dd/MM/yyyy')     AS "Julgado em"
+           , pt.nm_tarefa                                                as "Tarefa Atual"
+           , eds_julgados.numero_julgados                                AS "Quantidade"
             ,
            '$URL/execucao/T964?NUM_PROCESSO=' || p.nr_processo
                -- MAGISTRADO='||eds_julgados.id_pessoa
@@ -211,5 +209,5 @@ UNION ALL
              inner join tb_orgao_julgador oj on oj.id_orgao_julgador = ptrf.id_orgao_julgador
              INNER JOIN tb_classe_judicial cj ON (cj.id_classe_judicial = ptrf.id_classe_judicial)
              inner join tb_processo_tarefa pt on pt.id_processo_trf = p.id_processo
-    ORDER BY eds_julgados.data_ultimo_julgado::date, ul.ds_nome, p.nr_processo
+    ORDER BY eds_julgados.data_ultimo_julgado::date, ul.ds_nome_consulta, p.nr_processo
 )
