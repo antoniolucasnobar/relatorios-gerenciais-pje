@@ -16,9 +16,9 @@ movimentos_julgado_incidentes_execucao AS (
     WHERE 
                     -- eh movimento de julgamento
 -- 219   - Julgado(s) procedente(s) o(s) pedido(s) (#{classe processual}/ #{nome do incidente}) de #{nome da parte}
--- 221   - Julgado(s) procedente(s) em parte o(s) pedido(s) (#{classe processual} / #{nome do incidente}) de #{nome da parte}  
+-- 221   - Julgado(s) procedente(s) em parte o(s) pedido(s) (#{classe processual} / #{nome do incidente}) de #{nome da parte}
 -- 220   - Julgado(s) improcedente(s) o(s) pedido(s) (#{classe processual} / #{nome do incidente}) de #{nome da parte}
--- 50013 - Julgado(s) liminarmente improcedente(s) o(s) pedido(s) (#{classe processual} / #{nome do incidente}) de #{nome da parte}  
+-- 50013 - Julgado(s) liminarmente improcedente(s) o(s) pedido(s) (#{classe processual} / #{nome do incidente}) de #{nome da parte}
 -- 50050 - Extinto com resolução do mérito o incidente #{nome do incidente} de #{nome da parte}
 -- 50048 - Extinto sem resolução do mérito o incidente #{nome do incidente} de #{nome da parte}
         ev.cd_evento IN 
@@ -45,20 +45,24 @@ movimentos_julgado_incidentes_execucao AS (
              order by pen.dt_atualizacao desc
              limit 1
           ) concluso ON TRUE
-        INNER JOIN tb_processo_evento iniciada_execucao
-            ON (iniciada_execucao.id_processo = doc.id_processo
-            AND iniciada_execucao.id_evento = 11385)
-            -- TODO: ver quais outros movimentos que deixam o processo na
-            -- execução, como por exemplo desarquivar
-            -- TODO: ver tb que pode ter mais de um mov. de iniciada a execução
+--         INNER JOIN tb_processo_evento iniciada_execucao
+--             ON (iniciada_execucao.id_processo = doc.id_processo
+--             AND iniciada_execucao.id_evento = 11385)
+--             -- TODO: ver quais outros movimentos que deixam o processo na
+--             -- execução, como por exemplo desarquivar
+--             -- TODO: ver tb que pode ter mais de um mov. de iniciada a execução
     where doc.in_ativo = 'S'
     -- 62 -- sentenca
       AND doc.id_tipo_processo_documento IN (SELECT id_tipo_processo_documento FROM tipo_documento_sentenca)
 
     AND assin.id_pessoa = coalesce(:MAGISTRADO, assin.id_pessoa)
     -- so pega documentos juntados depois do inicio da execucao
-      and doc.dt_juntada :: date between GREATEST(iniciada_execucao.dt_atualizacao, coalesce(:DATA_INICIAL_OPCIONAL,
-          date_trunc('month', current_date))::date)::date and (coalesce(:DATA_OPCIONAL_FINAL, current_date))::date
+--       and doc.dt_juntada :: date between GREATEST(iniciada_execucao.dt_atualizacao, coalesce(: DATA_INICIAL_OPCIONAL,
+--              date_trunc('month', current_date))::date)::date and (coalesce(: DATA_OPCIONAL_FINAL, current_date))
+--              ::date
+      and doc.dt_juntada :: date between
+          coalesce(:DATA_INICIAL_OPCIONAL,date_trunc('month', current_date))::date
+          and (coalesce(:DATA_OPCIONAL_FINAL, current_date))::date
 
       and concluso.ds_texto_final_interno ilike ANY (
         ARRAY['Conclusos os autos para julgamento da ação incidental na execu__o%'
@@ -234,9 +238,9 @@ movimentos_julgado_incidentes_execucao AS (
 )
 SELECT
     'TOTAL' AS "Magistrado",
-    SUM(incidentes_por_magistrado.quantidade_julgado) AS "Incidentes Julgados",
+    SUM(incidentes_julgados.numero_julgados) AS "Incidentes Julgados",
     '-' as "Ver Incidentes Julgados"
-FROM incidentes_por_magistrado
+FROM incidentes_julgados
 UNION ALL
 (
 
