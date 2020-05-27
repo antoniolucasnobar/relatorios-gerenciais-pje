@@ -1,6 +1,6 @@
 -- [R137698][T962] - Relatório SAO - SENTENÇAS DE CONHECIMENTO sem movimento.
 
--- explain analyze
+-- explain -- analyze
 WITH sentencas_sem_movimentos AS (
 select 
     assin.id_pessoa, 
@@ -42,13 +42,13 @@ select
     (
         (:CONCLUSO_OU_JUNTADA = 2 
             and doc.dt_juntada :: date between 
-                coalesce(:DATA_INICIAL_OPCIONAL, date_trunc('year', current_date))::date 
-                and (coalesce(:DATA_FINAL_OPCIONAL, current_date))::date)
+                coalesce(:DATA_INICIAL_OPCIONAL, date_trunc('year', current_date))::date
+                and (coalesce(:DATA_OPCIONAL_FINAL, current_date))::date)
         OR
         (:CONCLUSO_OU_JUNTADA = 1
             AND concluso.dt_atualizacao :: date between 
-                coalesce(:DATA_INICIAL_OPCIONAL, date_trunc('year', current_date))::date 
-                and (coalesce(:DATA_FINAL_OPCIONAL, current_date))::date)
+                coalesce(:DATA_INICIAL_OPCIONAL, date_trunc('year', current_date))::date
+                and (coalesce(:DATA_OPCIONAL_FINAL, current_date))::date)
     )
     and not exists 
         (
@@ -62,7 +62,60 @@ select
                     AND mov_julgam.dt_atualizacao BETWEEN 
                         doc.dt_juntada - ('5 minutes')::interval
                         AND doc.dt_juntada + ('5 minutes')::interval
+                    -- 60 - intimacao?
                     AND ev.cd_evento != '60'
+                )
+        )
+      AND NOT EXISTS(
+            SELECT 1
+            FROM tb_processo_evento pe
+                     INNER JOIN tb_evento_processual ev ON
+                (pe.id_evento = ev.id_evento_processual)
+            WHERE doc.id_processo = pe.id_processo
+              AND pe.dt_atualizacao:: date <= (coalesce(:DATA_OPCIONAL_FINAL, current_date))::date
+              AND pe.id_processo_evento_excludente IS NULL
+              AND (
+                (
+                    --         -- eh movimento de julgamento
+                            ev.cd_evento IN
+                            (
+                             '442', '450', '452', '444',
+                             '471', '446', '448', '455', '466',
+                             '11795', '220', '50103', '221', '219',
+                             '472', '473', '458', '461', '459', '465',
+                             '462', '463', '457', '460', '464', '454'
+                                )
+                        -- sem movimento de revogação/reforma/anulacao posterior
+                        AND
+                            NOT EXISTS(
+                                    SELECT 1
+                                    FROM tb_processo_evento reforma_anulacao
+                                             INNER JOIN tb_evento_processual ev
+                                                        ON reforma_anulacao.id_evento = ev.id_evento_processual
+                                             INNER JOIN tb_complemento_segmentado cs
+                                                        ON (cs.id_movimento_processo = reforma_anulacao.id_evento)
+                                    WHERE p.id_processo = reforma_anulacao.id_processo
+                                      AND reforma_anulacao.id_processo_evento_excludente IS NULL
+                                      AND pe.dt_atualizacao <= reforma_anulacao.dt_atualizacao
+                                      AND (
+                                        -- - Recebidos os autos para novo julgamento (por reforma da decisão pela instância superior)
+                                        -- - Recebidos os autos para novo julgamento (por necessidade de adequação ao sistema de precedente de recurso repetitivo)
+                                        -- - Recebidos os autospara novo julgamento (por reforma da decisão da instância inferior)
+                                        -- - Recebidos os autos para novo julgamento (por determinação superior para uniformização de jurisprudência)
+                                            (ev.cd_evento = '132'
+                                                AND cs.ds_texto IN ('7098', '7131', '7132', '7467', '7585')
+                                                )
+                                            OR
+                                            (
+                                                -- 157 -> 945 - Revogada a decisão anterior (#{tipo de decisão}))
+                                                -- 3   -> 190 - Reformada a decisão anterior (#{tipo de decisão})
+                                                    ev.cd_evento IN ('945', '190')
+                                                    AND reforma_anulacao.ds_texto_final_interno ilike
+                                                        'Re%ada a decisão anterior%senten_a%'
+                                                )
+                                        )
+                                )
+                    )
                 )
         )
 )
