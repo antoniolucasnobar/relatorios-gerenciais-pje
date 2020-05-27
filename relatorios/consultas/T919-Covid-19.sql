@@ -118,8 +118,8 @@ where
     AND ((:CARGO is null) or (position(:CARGO in ojc.ds_cargo) > 0))
     AND fase.id_agrupamento_fase = coalesce(:ID_FASE_PROCESSUAL, fase.id_agrupamento_fase)
     AND fase.id_agrupamento_fase != 5
-                    and (ptrf.dt_autuacao BETWEEN to_timestamp(:DATA_INICIAL, 'yyyy-MM-dd' )
-                           and (to_timestamp(:DATA_FINAL, 'yyyy-MM-dd' ) + interval '24 hours'))
+    AND (ptrf.dt_autuacao BETWEEN coalesce(:DATA_INICIAL_OPCIONAL, date_trunc('month', current_date))::date
+    AND ((coalesce(:DATA_OPCIONAL_FINAL, current_date))::date + interval '24 hours'))
 
     AND
     CASE 
