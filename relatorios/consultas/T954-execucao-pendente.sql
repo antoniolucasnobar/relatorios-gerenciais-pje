@@ -1,4 +1,4 @@
--- R136877 - Relatório SAO - INCIDENTES DE EXECUÇÃO PENDENTES
+-- [R136877][T954] - Relatório SAO - INCIDENTES DE EXECUÇÃO PENDENTES
 -- REGRAS:
 -- Ter um concluso para:
 --  - acao incidental
@@ -27,7 +27,7 @@
 --  - Embargos a Execucao
 --  - Impugnacao a Sentenca de Liquidacao
 --
-
+-- explain
 WITH 
 -- comentado pois jeferson falou que acontece da peticao estar classificada incorretamente.
 -- tipos_documento AS (
@@ -40,46 +40,47 @@ WITH
 -- ) ,
 pendentes_execucao AS (
 SELECT  concluso.id_pessoa_magistrado, 
-        pen.id_processo_evento,
-        pen.dt_atualizacao AS pendente_desde,
+        mov_concluso.id_processo_evento,
+        mov_concluso.dt_atualizacao AS pendente_desde,
         p.id_processo,
         p.nr_processo
         -- COUNT(concluso.id_pessoa_magistrado) AS total
     FROM 
     tb_conclusao_magistrado concluso
-    INNER JOIN tb_processo_evento pen 
-        ON (pen.id_processo_evento = concluso.id_processo_evento 
-            AND pen.id_processo_evento_excludente IS NULL
+    INNER JOIN tb_processo_evento mov_concluso
+        ON (mov_concluso.id_processo_evento = concluso.id_processo_evento
+            AND mov_concluso.id_processo_evento_excludente IS NULL
             -- esse é o codigo do movimento. se esse id mudar tem de ir na tb_evento_processual.cd_evento
-            and pen.id_evento = 51 
+            and mov_concluso.id_evento = 51
             -- Conclusão do tipo "Julgamento da ação incidental" 
             AND (
-                pen.ds_texto_final_interno ilike 'Conclusos os autos para julgamento da ação incidental na execu__o%'
-                OR pen.ds_texto_final_interno ilike 'Conclusos os autos para julgamento dos Embargos _ Execu__o%'
-                OR pen.ds_texto_final_interno ilike 'Conclusos os autos para julgamento da Impugna__o _ Sentença de Liquida__o%'
+                mov_concluso.ds_texto_final_interno ilike 'Conclusos os autos para julgamento da ação incidental na execu__o%'
+                OR mov_concluso.ds_texto_final_interno ilike 'Conclusos os autos para julgamento dos Embargos _ Execu__o%'
+                OR mov_concluso.ds_texto_final_interno ilike 'Conclusos os autos para julgamento da Impugna__o _ Sentença de Liquida__o%'
                 )
         )
-    INNER JOIN tb_processo p on (p.id_processo = pen.id_processo)
+    INNER JOIN tb_processo p on (p.id_processo = mov_concluso.id_processo)
     -- INNER JOIN LATERAL (
     --     SELECT doc.dt_juntada FROM tb_processo_documento doc WHERE 
-    --     doc.id_processo = pen.id_processo
-    --     AND doc.dt_juntada < pen.dt_atualizacao
+    --     doc.id_processo = mov_concluso.id_processo
+    --     AND doc.dt_juntada < mov_concluso.dt_atualizacao
     --     AND doc.id_tipo_processo_documento IN (SELECT id_tipo_processo_documento FROM tipos_documento)
     --     ORDER BY doc.dt_juntada DESC LIMIT 1
     -- ) peticao ON TRUE
     WHERE
         concluso.id_pessoa_magistrado  = coalesce(:MAGISTRADO, concluso.id_pessoa_magistrado)
+        AND mov_concluso.dt_atualizacao::date <= (coalesce(:DATA_OPCIONAL_FINAL, current_date))::date
         -- concluso.in_diligencia != 'S'
         AND p.id_agrupamento_fase = 4 -- somente execucao --
         AND NOT EXISTS(
             SELECT 1 FROM tb_processo_evento pe 
             INNER JOIN tb_evento_processual ev ON 
                 (pe.id_evento = ev.id_evento_processual)
-            WHERE pen.id_processo = pe.id_processo
+            WHERE mov_concluso.id_processo = pe.id_processo
             AND pe.id_processo_evento_excludente IS NULL
-            AND (pe.dt_atualizacao > pen.dt_atualizacao
+            AND (pe.dt_atualizacao > mov_concluso.dt_atualizacao
                     -- OR
-                    -- pe.dt_atualizacao BETWEEN peticao.dt_juntada AND pen.dt_atualizacao
+                    -- pe.dt_atualizacao BETWEEN peticao.dt_juntada AND mov_concluso.dt_atualizacao
                 )
             AND (
                 (
@@ -99,9 +100,9 @@ SELECT  concluso.id_pessoa_magistrado,
                     (
                         --nome do complemento bate com o da conclusao
                         ev.cd_evento = '50087' AND
-                        (pen.ds_texto_final_interno ilike '%Impugnação à Sentença de Liquidação%' and pe.ds_texto_final_interno ilike '%Impugnação à Sentença de Liquidação%')
-                        OR (pen.ds_texto_final_interno ilike '%Embargos à Execução%' and pe.ds_texto_final_interno ilike '%Embargos à Execução%')
-                        OR (pen.ds_texto_final_interno ilike 'Conclusos os autos para julgamento da ação incidental na execu__o%' 
+                        (mov_concluso.ds_texto_final_interno ilike '%Impugnação à Sentença de Liquidação%' and pe.ds_texto_final_interno ilike '%Impugnação à Sentença de Liquidação%')
+                        OR (mov_concluso.ds_texto_final_interno ilike '%Embargos à Execução%' and pe.ds_texto_final_interno ilike '%Embargos à Execução%')
+                        OR (mov_concluso.ds_texto_final_interno ilike 'Conclusos os autos para julgamento da ação incidental na execu__o%'
                             and (pe.ds_texto_final_interno ilike '%Embargos à Execução%' 
                                 OR pe.ds_texto_final_interno ilike '%Impugnação à Sentença de Liquidação%'
                             )
@@ -121,17 +122,29 @@ SELECT  concluso.id_pessoa_magistrado,
             ) 
         )
 )
-SELECT ul.ds_nome AS "Magistrado", 
--- conclusos_por_magistrado.total,
-conclusos_por_magistrado.pendentes_sentenca AS "Pendentes",
-'$URL/execucao/T955?MAGISTRADO='||conclusos_por_magistrado.id_pessoa_magistrado||'&texto='||conclusos_por_magistrado.pendentes_sentenca as "Ver Pendentes"
--- conclusos_por_magistrado.total - conclusos_por_magistrado.pendentes_sentenca AS proferidas
-FROM  (
-    SELECT  pendentes_execucao.id_pessoa_magistrado, 
-        -- COUNT(pendentes_execucao.id_pessoa_magistrado) AS total,
-        COUNT(pendentes_execucao.id_pessoa_magistrado) AS pendentes_sentenca
-    FROM pendentes_execucao
-    GROUP BY pendentes_execucao.id_pessoa_magistrado
-) conclusos_por_magistrado  
-INNER JOIN tb_usuario_login ul ON (ul.id_usuario = conclusos_por_magistrado.id_pessoa_magistrado)
-ORDER BY ul.ds_nome
+, incidentes_exec_pendentes_por_magistrado AS    (
+        SELECT pendentes_execucao.id_pessoa_magistrado,
+               -- COUNT(pendentes_execucao.id_pessoa_magistrado) AS total,
+               COUNT(pendentes_execucao.id_pessoa_magistrado) AS pendentes_sentenca
+        FROM pendentes_execucao
+        GROUP BY pendentes_execucao.id_pessoa_magistrado
+    )
+SELECT
+    'TOTAL' AS "Magistrado",
+    SUM(incidentes_exec_pendentes_por_magistrado.pendentes_sentenca) AS "Pendentes",
+    '-' as "Ver Pendentes"
+FROM incidentes_exec_pendentes_por_magistrado
+UNION ALL
+(
+    SELECT ul.ds_nome                                  AS "Magistrado",
+-- incidentes_exec_pendentes_por_magistrado.total,
+           incidentes_exec_pendentes_por_magistrado.pendentes_sentenca AS "Pendentes",
+           '$URL/execucao/T955?MAGISTRADO=' || incidentes_exec_pendentes_por_magistrado.id_pessoa_magistrado
+               ||'&DATA_OPCIONAL_FINAL='||to_char((coalesce(:DATA_OPCIONAL_FINAL, current_date))::date,'mm/dd/yyyy')
+               || '&texto=' ||
+           incidentes_exec_pendentes_por_magistrado.pendentes_sentenca as "Ver Pendentes"
+-- incidentes_exec_pendentes_por_magistrado.total - incidentes_exec_pendentes_por_magistrado.pendentes_sentenca AS proferidas
+    FROM incidentes_exec_pendentes_por_magistrado
+             INNER JOIN tb_usuario_login ul ON (ul.id_usuario = incidentes_exec_pendentes_por_magistrado.id_pessoa_magistrado)
+    ORDER BY ul.ds_nome
+)
