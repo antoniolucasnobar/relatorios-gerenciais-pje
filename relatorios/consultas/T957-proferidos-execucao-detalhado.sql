@@ -93,11 +93,13 @@ WITH RECURSIVE
     FROM incidentes_execucao_julgados edj
     GROUP BY edj.id_processo, edj.id_pessoa
 )
-   , peticoes_incidentes_exec (id_processo, id_peticao, id_julgamento) AS (
+   , peticoes_incidentes_exec (id_processo, id_peticao, id_julgamento, julgamentos_efetuados) AS (
     (
         SELECT DISTINCT ON (ed.id_processo) ed.id_processo
                                           , ed.id_processo_evento             AS id_peticao
                                           , julgamento.id_processo_evento     AS id_julgamento
+                                          -- -1 para o array nao ficar vazio nunca
+                                          , ARRAY[-1, julgamento.id_processo_evento]    AS julgamentos_efetuados
                                           , ed.dt_atualizacao                 AS data_ed
                                           , ed.ds_texto_final_externo         AS tx_ed
                                           , julgamento.dt_atualizacao         AS dt_j
@@ -128,6 +130,12 @@ WITH RECURSIVE
                                  )
                          )
                  )
+                AND CASE
+                        WHEN ed.ds_texto_final_interno ilike '%Embargos à Execução%'
+                            THEN julgamento.ds_texto_final_externo ilike '%Embargos à Execução%'
+                        WHEN ed.ds_texto_final_interno ilike '%Impugnação à Sentença de Liquidação%'
+                            THEN julgamento.ds_texto_final_externo ilike '%Impugnação à Sentença de Liquidação%'
+                 END
                 )
         WHERE ed.id_processo IN (
             SELECT id_processo FROM processos_com_incidentes_assinados
@@ -158,6 +166,8 @@ WITH RECURSIVE
         SELECT DISTINCT ON (ed.id_processo) ed.id_processo
                                           , ed.id_processo_evento             AS id_peticao
                                           , julgamento.id_processo_evento     AS id_j
+                                          , julgamentos_efetuados || julgamento.id_processo_evento::integer AS
+                                                                                 julgamentos_efetuados
                                           , ed.dt_atualizacao                 AS data_ed
                                           , ed.ds_texto_final_externo         AS tx_ed
                                           , julgamento.dt_atualizacao         AS dt_j
@@ -168,7 +178,8 @@ WITH RECURSIVE
                  LEFT JOIN tb_processo_evento julgamento ON
             (ed.id_processo = julgamento.id_processo
                 -- parte recursiva pra pegar o mov de julgamento seguinte
-                AND julgamento.id_processo_evento > pj.id_julgamento
+--                 AND julgamento.id_processo_evento > pj.id_julgamento
+                AND NOT (julgamento.id_processo_evento::integer = ANY(julgamentos_efetuados))
                 AND julgamento.dt_atualizacao > ed.dt_atualizacao
                 AND julgamento.dt_atualizacao::date <= COALESCE(:DATA_OPCIONAL_FINAL, CURRENT_DATE)::date
                 AND (
@@ -191,6 +202,12 @@ WITH RECURSIVE
                                  )
                          )
                  )
+                AND CASE
+                        WHEN ed.ds_texto_final_interno ilike '%Embargos à Execução%'
+                            THEN julgamento.ds_texto_final_externo ilike '%Embargos à Execução%'
+                        WHEN ed.ds_texto_final_interno ilike '%Impugnação à Sentença de Liquidação%'
+                            THEN julgamento.ds_texto_final_externo ilike '%Impugnação à Sentença de Liquidação%'
+                 END
                 )
         WHERE ed.id_processo_evento > id_peticao
           AND ed.dt_atualizacao::date <= COALESCE(:DATA_OPCIONAL_FINAL, CURRENT_DATE)::date
@@ -215,7 +232,7 @@ WITH RECURSIVE
         ORDER BY ed.id_processo, ed.dt_atualizacao, julgamento.id_processo_evento
     )
 )
-   , incidentes_sem_alterada_peticao AS (
+, incidentes_sem_alterada_peticao AS (
     SELECT peticoes_incidentes_exec.* FROM peticoes_incidentes_exec
     WHERE peticoes_incidentes_exec.mov_julgamento IS DISTINCT FROM 50088
 )
