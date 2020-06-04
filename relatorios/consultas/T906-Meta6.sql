@@ -1,4 +1,4 @@
--- R??? - T906
+-- [R136908][T906] - Meta 6
 
 SELECT 'http://processo='||p.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_DETALHES_PROCESSO' as " "
     ,'http://processo='||p.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_TAREFA&texto='||cj
@@ -11,32 +11,36 @@ SELECT 'http://processo='||p.nr_processo||'&grau=primeirograu&recurso=$RECURSO_P
          ptrf.id_orgao_julgador_cargo = ojc.id_orgao_julgador_cargo)
      ) as "Cargo"
 --     , cargo.cd_cargo as "Cargo"
-    ,(SELECT trim(ul1.ds_nome_consulta)
-        FROM tb_usuario_login ul1
-         INNER JOIN tb_processo_parte ativo1 ON
-            (ativo1.id_pessoa = ul1.id_usuario
-                AND ativo1.id_processo_trf = p.id_processo
-                AND ativo1.in_participacao in ('A')
-                AND ativo1.in_parte_principal = 'S'
-                AND ativo1.in_situacao = 'A'
-                AND ativo1.nr_ordem = 1
-                )
-    )
---     || CASE
---         WHEN (ativo2.id_pessoa IS NOT NULL) THEN ' E OUTROS (' ||
---             (SELECT COUNT(pp.id_processo_trf) FROM tb_processo_parte pp
---                 WHERE (pp.id_processo_trf = pe.id_processo
---                         AND pp.in_participacao in ('A')
---                         AND pp.in_parte_principal = 'S'
---                         AND pp.in_situacao = 'A'
---                         )
---             ) || ')'
---         ELSE ''
---     END
-        AS "Polo Ativo"
+    ,CONCAT(
+        (SELECT trim(ul1.ds_nome_consulta)
+         FROM tb_usuario_login ul1
+                  INNER JOIN tb_processo_parte ativo1 ON
+             (ativo1.id_pessoa = ul1.id_usuario
+                 AND ativo1.id_processo_trf = p.id_processo
+                 AND ativo1.in_participacao in ('A')
+                 AND ativo1.in_parte_principal = 'S'
+                 AND ativo1.in_situacao = 'A'
+                 AND ativo1.nr_ordem = 1
+                 )
+        )
+    -- verificar se tem mais de uma parte no processo
+    , (SELECT ' E OUTROS ('
+                  || COUNT(pp.id_processo_trf)
+                  || ')'
+       FROM tb_processo_parte pp
+       WHERE (pp.id_processo_trf = pe.id_processo
+           AND pp.in_participacao in ('A')
+           AND pp.in_parte_principal = 'S'
+           AND pp.in_situacao = 'A'
+                 )
+       HAVING COUNT(pp.id_processo_trf) > 1
+        )
+    ) AS "Polo Ativo"
 --     ,
 -- || ' X ' ||
-        ,(SELECT trim(ul1.ds_nome_consulta)
+    ,CONCAT(
+
+        (SELECT trim(ul1.ds_nome_consulta)
          FROM tb_usuario_login ul1
             INNER JOIN tb_processo_parte passivo1 ON
              (passivo1.id_pessoa = ul1.id_usuario
@@ -47,18 +51,18 @@ SELECT 'http://processo='||p.nr_processo||'&grau=primeirograu&recurso=$RECURSO_P
                  AND passivo1.nr_ordem = 1
                  )
          )
---         || CASE
---                WHEN (passivo2.id_processo_trf IS NOT NULL) THEN ' E OUTROS (' ||
---                                                                 (SELECT COUNT(pp.id_processo_trf) FROM tb_processo_parte pp
---                                                                  WHERE (pp.id_processo_trf = pe.id_processo
---                                                                      AND pp.in_participacao in ('P')
---                                                                      AND pp.in_parte_principal = 'S'
---                                                                      AND pp.in_situacao = 'A'
---                                                                            )
---                                                                 ) || ')'
---                ELSE ''
---             END
-            AS "Polo Passivo"
+    , (SELECT ' E OUTROS ('
+                  || COUNT(pp.id_processo_trf)
+                  || ')'
+       FROM tb_processo_parte pp
+       WHERE (pp.id_processo_trf = pe.id_processo
+           AND pp.in_participacao in ('P')
+           AND pp.in_parte_principal = 'S'
+           AND pp.in_situacao = 'A'
+                 )
+       HAVING COUNT(pp.id_processo_trf) > 1
+        )
+    ) AS "Polo Passivo"
     , fase.nm_agrupamento_fase as "Fase"
     , pt.nm_tarefa as "Tarefa"
 
@@ -104,8 +108,10 @@ FROM
 --             AND passivo2.nr_ordem = 2
 --             )
 
-WHERE 
-    oj.id_orgao_julgador = coalesce(:ORGAO_JULGADOR_TODOS, oj.id_orgao_julgador)
+WHERE
+    -- Somente processos no conhecimento
+    p.id_agrupamento_fase = 2
+    AND oj.id_orgao_julgador = coalesce(:ORGAO_JULGADOR_TODOS, oj.id_orgao_julgador)
     -- regra 1.b - somente as seguintes classes
     -- 65 - Ação civil pública
     -- 980 - Ação de Cumprimento
@@ -197,5 +203,22 @@ WHERE
         )
         END
     )
-        
+  AND CASE
+          WHEN (length(TRIM(COALESCE(:NOME_PARTE, ''))) > 0 ) THEN TRUE
+          ELSE EXISTS(
+                  SELECT 1 FROM tb_processo_parte pp
+                                    INNER JOIN tb_usuario_login usu ON (usu.id_usuario = pp.id_pessoa)
+                  WHERE pp.id_processo_trf = pe.id_processo
+                    AND pp.in_parte_principal = 'S'
+                    AND pp.in_situacao = 'A'
+                    AND pp.in_participacao in ('A','P')
+                    AND usu.ds_nome_consulta LIKE '%' || TO_ASCII(UPPER(TRIM(:NOME_PARTE))) || '%'
+              )
+    END
+  AND ((:CARGO is null) or
+       (position(:CARGO in
+                 (SELECT ojc.ds_cargo FROM tb_orgao_julgador_cargo ojc
+                  WHERE (ptrf.id_orgao_julgador_cargo = ojc.id_orgao_julgador_cargo)
+                 )
+            ) > 0))
 
