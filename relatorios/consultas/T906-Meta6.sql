@@ -1,5 +1,22 @@
 -- [R136908][T906] - Meta 6
-
+WITH movimentos_julgamento_conhecimento AS (
+    SELECT ev.id_evento_processual
+    FROM tb_evento_processual ev
+    WHERE  ev.cd_evento IN
+        ('941', '442', '450', '452', '444',
+        '471', '446', '448', '455', '466',
+        '11795', '220', '50103', '221', '219',
+        '472', '473', '458', '461', '459', '465',
+        '462', '463', '457', '460', '464', '454')
+)
+, movimentos_sobrestamento_suspensao AS (
+    SELECT ev.id_evento_processual
+    FROM tb_evento_processual ev
+    WHERE ev.cd_evento IN
+        ('272', '275', '268', '12100', '50100', '898',
+        '50092', '50135', '50136', '11975', '265',
+        '50107', '11012', '11013', '11014', '11015')
+)
 SELECT 'http://processo='||p.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_DETALHES_PROCESSO' as " "
     ,'http://processo='||p.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_TAREFA&texto='||cj
            .ds_classe_judicial_sigla||' '||p.nr_processo as "Processo"
@@ -74,43 +91,13 @@ FROM
     inner join tb_processo p on p.id_processo = pe.id_processo
     inner join tb_processo_trf ptrf on ptrf.id_processo_trf = p.id_processo   
     join tb_orgao_julgador oj on (oj.id_orgao_julgador = ptrf.id_orgao_julgador)
---     inner join tb_orgao_julgador_cargo ojc ON (ptrf.id_orgao_julgador_cargo = ojc.id_orgao_julgador_cargo)
---     inner join tb_cargo cargo ON (ojc.id_cargo = cargo.id_cargo)
     inner join tb_processo_tarefa pt on pt.id_processo_trf = p.id_processo
     inner join tb_agrupamento_fase fase on (p.id_agrupamento_fase = fase.id_agrupamento_fase)
     INNER JOIN tb_classe_judicial cj ON (cj.id_classe_judicial = ptrf.id_classe_judicial)
---     INNER JOIN tb_processo_parte ativo1 ON
---         (ativo1.id_processo_trf = p.id_processo
---             AND ativo1.in_participacao in ('A')
---             AND ativo1.in_parte_principal = 'S'
---             AND ativo1.in_situacao = 'A'
---             AND ativo1.nr_ordem = 1
---             )
---     INNER JOIN tb_processo_parte passivo1 ON
---         (passivo1.id_processo_trf = p.id_processo
---             AND passivo1.in_participacao in ('P')
---             AND passivo1.in_parte_principal = 'S'
---             AND passivo1.in_situacao = 'A'
---             AND passivo1.nr_ordem = 1
---             )
---     LEFT JOIN tb_processo_parte ativo2 ON
---         (ativo2.id_processo_trf = p.id_processo
---             AND ativo2.in_participacao in ('A')
---             AND ativo2.in_parte_principal = 'S'
---             AND ativo2.in_situacao = 'A'
---             AND ativo2.nr_ordem = 2
---             )
---     LEFT JOIN tb_processo_parte passivo2 ON
---         (passivo2.id_processo_trf = p.id_processo
---             AND passivo2.in_participacao in ('P')
---             AND passivo2.in_parte_principal = 'S'
---             AND passivo2.in_situacao = 'A'
---             AND passivo2.nr_ordem = 2
---             )
-
 WHERE
     -- Somente processos no conhecimento
-    p.id_agrupamento_fase = 2
+--     p.id_agrupamento_fase = 2
+    fase.id_agrupamento_fase = coalesce(:ID_FASE_PROCESSUAL, fase.id_agrupamento_fase)
     AND oj.id_orgao_julgador = coalesce(:ORGAO_JULGADOR_TODOS, oj.id_orgao_julgador)
     -- regra 1.b - somente as seguintes classes
     -- 65 - Ação civil pública
@@ -126,16 +113,11 @@ WHERE
         WHEN 
             NOT EXISTS(
                 SELECT pe.id_processo FROM tb_processo_evento pe 
-                INNER JOIN tb_evento_processual ev ON 
-                    (pe.id_evento = ev.id_evento_processual)
                 WHERE p.id_processo = pe.id_processo
-                AND ev.cd_evento IN 
-                    ('941', '442', '450', '452', '444', 
-                    '471', '446', '448', '455', '466', 
-                    '11795', '220', '50103', '221', '219', 
-                    '472', '473', '458', '461', '459', '465', 
-                    '462', '463', '457', '460', '464', '454')    
-            ) 
+                AND pe.id_evento IN
+                    (SELECT julgamento.id_evento_processual
+                    FROM movimentos_julgamento_conhecimento julgamento)
+            )
             THEN TRUE
             -- regra 1.c EXCECAO: existe mov. julgamento, mas foi reformada ou anulada posteriormente
             ELSE 
@@ -150,16 +132,11 @@ WHERE
                     ) 
                     AND pe2.dt_atualizacao > 
                         (
-                            SELECT MAX(pe.dt_atualizacao) FROM tb_processo_evento pe 
-                            INNER JOIN tb_evento_processual ev ON 
-                                (pe.id_evento = ev.id_evento_processual)
+                            SELECT MAX(pe.dt_atualizacao) FROM tb_processo_evento pe
                             WHERE p.id_processo = pe.id_processo
-                            AND ev.cd_evento IN 
-                                ('941', '442', '450', '452', '444', 
-                                '471', '446', '448', '455', '466', 
-                                '11795', '220', '50103', '221', '219', 
-                                '472', '473', '458', '461', '459', '465', 
-                                '462', '463', '457', '460', '464', '454')    
+                              AND pe.id_evento IN
+                                  (SELECT julgamento.id_evento_processual
+                                   FROM movimentos_julgamento_conhecimento julgamento)
                         ) 
                 )
             END
@@ -170,13 +147,11 @@ WHERE
             NOT EXISTS 
             (
                 SELECT pe.id_processo FROM tb_processo_evento pe 
-                INNER JOIN tb_evento_processual ev ON 
-                    (pe.id_evento = ev.id_evento_processual)
                 WHERE p.id_processo = pe.id_processo
-                AND ev.cd_evento IN 
-                    ('272', '275', '268', '12100', '50100', '898', 
-                    '50092', '50135', '50136', '11975', '265', 
-                    '50107', '11012', '11013', '11014', '11015')    
+                AND pe.id_evento IN (
+                  SELECT sobrestamento.id_evento_processual
+                  FROM movimentos_sobrestamento_suspensao sobrestamento
+                )
             )
         THEN TRUE
         ELSE
@@ -191,13 +166,11 @@ WHERE
                 AND pe2.dt_atualizacao >
                 (
                     SELECT MAX(pe.dt_atualizacao) FROM tb_processo_evento pe 
-                    INNER JOIN tb_evento_processual ev ON 
-                        (pe.id_evento = ev.id_evento_processual)
                     WHERE p.id_processo = pe.id_processo
-                    AND ev.cd_evento IN 
-                        ('272', '275', '268', '12100', '50100', '898', 
-                        '50092', '50135', '50136', '11975', '265', 
-                        '50107', '11012', '11013', '11014', '11015') 
+                      AND pe.id_evento IN (
+                        SELECT sobrestamento.id_evento_processual
+                        FROM movimentos_sobrestamento_suspensao sobrestamento
+                    )
                 )
             )
         )
