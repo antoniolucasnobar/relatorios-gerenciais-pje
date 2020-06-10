@@ -3,7 +3,8 @@ WITH movimentos_julgamento_conhecimento AS (
     SELECT ev.id_evento_processual
     FROM tb_evento_processual ev
     WHERE  ev.cd_evento IN
-        ('941', '442', '450', '452', '444',
+           -- 941 - Declarada Incompetência - retirado, pois tera regra propria
+           ( '442', '450', '452', '444',
         '471', '446', '448', '455', '466',
         '11795', '220', '50103', '221', '219',
         '472', '473', '458', '461', '459', '465',
@@ -95,9 +96,9 @@ FROM
     inner join tb_agrupamento_fase fase on (p.id_agrupamento_fase = fase.id_agrupamento_fase)
     INNER JOIN tb_classe_judicial cj ON (cj.id_classe_judicial = ptrf.id_classe_judicial)
 WHERE
-    -- Somente processos no conhecimento
---     p.id_agrupamento_fase = 2
-    fase.id_agrupamento_fase = coalesce(:ID_FASE_PROCESSUAL, fase.id_agrupamento_fase)
+    -- Somente processos no conhecimento - confirmado por Lucas - ASSTECO 08/06/2020 14:00
+     p.id_agrupamento_fase = 2
+--    fase.id_agrupamento_fase = coalesce(: ID_FASE_PROCESSUAL, fase.id_agrupamento_fase)
     AND oj.id_orgao_julgador = coalesce(:ORGAO_JULGADOR_TODOS, oj.id_orgao_julgador)
     -- regra 1.b - somente as seguintes classes
     -- 65 - Ação civil pública
@@ -137,7 +138,20 @@ WHERE
                               AND pe.id_evento IN
                                   (SELECT julgamento.id_evento_processual
                                    FROM movimentos_julgamento_conhecimento julgamento)
-                        ) 
+                        )
+                      -- nao existe remessa ou transito em julgado posterior
+                    AND NOT EXISTS(
+                            SELECT 1 FROM tb_processo_evento remessa_ou_transito
+                            WHERE remessa_ou_transito.id_processo = pe2.id_processo
+                            AND remessa_ou_transito.dt_atualizacao > pe2.dt_atualizacao
+                            AND (remessa_ou_transito.id_evento = 848 -- transito
+                                OR
+                                 (remessa_ou_transito.id_evento = 123 -- remessa
+                                 AND remessa_ou_transito.ds_texto_final_interno ilike
+                                    'Remetidos os autos para _rg__ jurisdicional competente%para processar recurso'
+                                     )
+                                )
+                        )
                 )
             END
     )
@@ -194,4 +208,20 @@ WHERE
                   WHERE (ptrf.id_orgao_julgador_cargo = ojc.id_orgao_julgador_cargo)
                  )
             ) > 0))
+  AND
+    -- regra 1.x - Declarada Incompetencia
+   NOT EXISTS(
+           SELECT pe.id_processo FROM tb_processo_evento pe
+           WHERE p.id_processo = pe.id_processo
+             AND pe.id_evento = 941
+            AND NOT EXISTS(
+                -- sem redistribuicao posterior
+                   SELECT pe2.id_processo FROM tb_processo_evento pe2
+                           INNER JOIN tb_evento_processual ev ON
+                       (pe2.id_evento = ev.id_evento_processual)
+                   WHERE p.id_processo = pe2.id_processo
+                     AND ev.cd_evento IN ('36')
+                     AND pe2.dt_atualizacao > pe.dt_atualizacao
+               )
+       )
 
