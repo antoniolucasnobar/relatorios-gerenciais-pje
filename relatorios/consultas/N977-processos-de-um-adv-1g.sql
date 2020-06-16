@@ -28,6 +28,7 @@ where 1=1
         and ((trim(:CPF) IS NOT NULL AND trim(:CPF) <> '' AND pp.id_pessoa = pdi.id_pessoa) OR (trim(:CPF) IS NULL) OR (trim(:CPF) = ''))
         and cd_processo_status = 'D'
         and ti.end_ is null
+        AND oj.id_orgao_julgador = COALESCE(:ORGAO_JULGADOR_TODOS, oj.id_orgao_julgador)
         AND CASE
             -- em tramitacao
             WHEN :ID_SITUACAO_PROCESSO = 2 THEN p.id_agrupamento_fase IN (2, 3, 4)
