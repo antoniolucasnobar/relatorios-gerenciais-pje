@@ -5,13 +5,6 @@
 -- 235 - Não conhecido(s) o(s) #{nome do recurso} / #{nome do conflito} de #{nome da parte} / #{nome da pessoa} 
 -- explain
 WITH RECURSIVE
--- tipo_documento_embargo_declaracao AS (
---     --23	Embargos de Declaração	S			49
---     select id_tipo_processo_documento
---         from tb_tipo_processo_documento
---     where cd_documento = '49'
---         and in_ativo = 'S'
--- ),
 tipo_documento_sentenca AS (
     --62	Sentença	S			7007
     select id_tipo_processo_documento 
@@ -23,15 +16,15 @@ movimentos_embargos_declaracao_julgados AS (
     SELECT ev.id_evento_processual 
     FROM tb_evento_processual ev 
     WHERE 
-    -- 198 - Acolhidos os Embargos de Declaração de #{nome da parte}  
-    -- 871 - Acolhidos em parte os Embargos de Declaração de #{nome da parte}  
-    -- 200 - Não acolhidos os Embargos de Declaração de #{nome da parte}  
-    -- 235 - Não conhecido(s) o(s) #{nome do recurso} / #{nome do conflito} de #{nome da parte} / #{nome da pessoa} 
+    -- 198 - Acolhidos os Embargos de Declaração de #{nome da parte}
+    -- 871 - Acolhidos em parte os Embargos de Declaração de #{nome da parte}
+    -- 200 - Não acolhidos os Embargos de Declaração de #{nome da parte}
+    -- 235 - Não conhecido(s) o(s) #{nome do recurso} / #{nome do conflito} de #{nome da parte} / #{nome da pessoa}
         ev.cd_evento IN 
         ('198', '871', '200', '235')
 ) 
 ,
-    embargos_declaracao_julgados AS (
+embargos_declaracao_julgados AS (
         select
             assin.id_pessoa,
             doc.dt_juntada,
@@ -46,7 +39,6 @@ movimentos_embargos_declaracao_julgados AS (
                                    and pen.id_processo = doc.id_processo
                                    AND pen.id_processo_evento_excludente IS NULL
                                    and pen.id_evento = 51 -- esse é o codigo do movimento. se esse id mudar tem de ir na tb_evento_processual.cd_evento
-                                   -- AND pen.ds_texto_final_interno ilike 'Concluso%proferir senten_a%')
                                    )
             where pen.dt_atualizacao < doc.dt_juntada
             order by pen.dt_atualizacao desc
@@ -167,10 +159,10 @@ movimentos_embargos_declaracao_julgados AS (
     SELECT peticoes_eds.* FROM peticoes_eds
     WHERE peticoes_eds.mov_julgamento IS DISTINCT FROM 50088
 )
-, eds_julgados AS (
+   , eds_julgados AS (
     SELECT eds_sem_alterada_peticao.id_processo,
            count(eds_sem_alterada_peticao.id_processo) AS numero_julgados,
-           MAX(eds_sem_alterada_peticao.dt_j) AS data_ultimo_julgado
+           eds_sem_alterada_peticao.dt_j AS data_ultimo_julgado
     FROM eds_sem_alterada_peticao
     WHERE eds_sem_alterada_peticao.dt_j::date BETWEEN
               COALESCE(:DATA_INICIAL_OPCIONAL, date_trunc('month', current_date))::date
@@ -178,7 +170,7 @@ movimentos_embargos_declaracao_julgados AS (
               COALESCE(:DATA_OPCIONAL_FINAL, CURRENT_DATE)::date
     GROUP BY eds_sem_alterada_peticao.id_processo, eds_sem_alterada_peticao.dt_j
 )
-, eds_por_magistrado AS (
+, eds_julgados_por_magistrado AS (
     SELECT edj.id_pessoa,
            SUM(eds_julgados.numero_julgados) AS quantidade_julgado
     FROM processos_com_eds_assinados edj
@@ -187,20 +179,20 @@ movimentos_embargos_declaracao_julgados AS (
 )
 SELECT 
     'TOTAL' AS "Magistrado", 
-    SUM(eds_por_magistrado.quantidade_julgado) AS "EDs Julgados",
-    '-' as "Ver EDs Julgados"
-FROM eds_por_magistrado
+    SUM(eds_julgados_por_magistrado.quantidade_julgado) AS "Embargos Declaratórios Julgados",
+    '-' as "Ver Embargos Declaratórios Julgados"
+FROM eds_julgados_por_magistrado
 UNION ALL
 (
-    SELECT ul.ds_nome AS "Magistrado", 
-        eds_por_magistrado.quantidade_julgado AS "EDs Julgados"
+    SELECT ul.ds_nome_consulta AS "Magistrado",
+        eds_julgados_por_magistrado.quantidade_julgado AS "Embargos Declaratórios Julgados"
         ,
-        '$URL/execucao/T961?MAGISTRADO='||eds_por_magistrado.id_pessoa
+        '$URL/execucao/T961?MAGISTRADO='||eds_julgados_por_magistrado.id_pessoa
         ||'&DATA_INICIAL_OPCIONAL='||to_char(coalesce(:DATA_INICIAL_OPCIONAL, date_trunc('month', current_date))::date,'mm/dd/yyyy')
         ||'&DATA_OPCIONAL_FINAL='||to_char((coalesce(:DATA_OPCIONAL_FINAL, current_date))::date,'mm/dd/yyyy')
-        ||'&texto='||eds_por_magistrado.quantidade_julgado as "Ver EDs Julgados"
-    FROM eds_por_magistrado
-    INNER JOIN tb_usuario_login ul ON (ul.id_usuario = eds_por_magistrado.id_pessoa)
-    ORDER BY ul.ds_nome
+        ||'&texto='||eds_julgados_por_magistrado.quantidade_julgado as "Ver Embargos Declaratórios Julgados"
+    FROM eds_julgados_por_magistrado
+    INNER JOIN tb_usuario_login ul ON (ul.id_usuario = eds_julgados_por_magistrado.id_pessoa)
+    ORDER BY ul.ds_nome_consulta
 ) 
 

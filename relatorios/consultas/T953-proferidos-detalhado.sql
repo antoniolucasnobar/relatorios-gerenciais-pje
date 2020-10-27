@@ -1,12 +1,14 @@
 -- R136873 - Relatório SAO - SENTENÇAS DE CONHECIMENTO proferidas.
 
 -- explain analyze
+-- explain
 WITH sentencas_conhecimento_proferidas AS (
 select 
-    assin.id_pessoa, 
-    doc.dt_juntada,
-    doc.id_processo,
-    doc.id_tipo_processo_documento
+    assin.id_pessoa
+    , doc.dt_juntada
+    , doc.id_processo
+    , doc.id_tipo_processo_documento
+    , doc.id_processo_documento
     from tb_processo_documento doc 
     inner join tb_proc_doc_bin_pess_assin assin on (doc.id_processo_documento_bin = assin.id_processo_documento_bin)
     where doc.in_ativo = 'S'
@@ -41,17 +43,71 @@ select
 
         )
 )
+, sentencas_por_processo_com_filtros AS (
+    SELECT scp.*, audiencia.ds_tipo_audiencia
+    FROM sentencas_conhecimento_proferidas scp
+    LEFT JOIN LATERAL (
+        SELECT tta.ds_tipo_audiencia FROM tb_processo_audiencia pa
+              INNER JOIN tb_tipo_audiencia tta
+                  on pa.id_tipo_audiencia = tta.id_tipo_audiencia
+        WHERE pa.id_processo_documento = scp.id_processo_documento
+    ) audiencia ON TRUE
+    WHERE
+        CASE
+            WHEN :SOMENTE_AUDIENCIA = 93
+                THEN
+                    scp.id_tipo_processo_documento IN (93)
+                    AND NOT EXISTS
+                    (
+                        SELECT 1 FROM tb_processo_audiencia pa
+                          INNER JOIN tb_tipo_audiencia tta on pa.id_tipo_audiencia = tta.id_tipo_audiencia
+                        WHERE pa.id_processo_documento = scp.id_processo_documento
+                          AND tta.cd_sigla_tipo_audiencia IN ( '24')
+                        -- so julgamento.
+                    -- 1,Conciliação em Conhecimento,S,17
+                    -- 2,Conciliação em Execução,S,20
+                    -- 4,Julgamento,S,24
+                    -- 13,Mediação (fase de conhecimento),N,7524
+                    -- 14,Mediação (fase de execução),N,7525
+                    )
+            ELSE TRUE
+        END
+)
 SELECT 'http://processo='||p.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_DETALHES_PROCESSO' as " ",
          'http://processo='||p.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_TAREFA&texto='
          ||cj.ds_classe_judicial_sigla||' '
          ||p.nr_processo as "Processo",
     REPLACE(oj.ds_orgao_julgador, 'VARA DO TRABALHO', 'VT') AS "Unidade",
-    ul.ds_nome AS "Magistrado",
-    sentencas_conhecimento_proferidas.dt_juntada AS "Proferida em",
-    pt.nm_tarefa as "Tarefa Atual"
-FROM sentencas_conhecimento_proferidas 
-    INNER JOIN tb_usuario_login ul on (ul.id_usuario = sentencas_conhecimento_proferidas.id_pessoa)
-    INNER JOIN tb_processo p ON (p.id_processo = sentencas_conhecimento_proferidas.id_processo)
+    ul.ds_nome_consulta AS "Magistrado",
+   (SELECT ttpd.ds_tipo_processo_documento FROM tb_tipo_processo_documento ttpd
+       WHERE ttpd.id_tipo_processo_documento =
+             sentencas_por_processo_com_filtros.id_tipo_processo_documento
+   ) AS "Tipo de Documento"
+    ,sentencas_por_processo_com_filtros.ds_tipo_audiencia AS "Tipo de Audiência",
+    sentencas_por_processo_com_filtros.dt_juntada AS "Proferida em",
+       (
+           SELECT string_agg(julgamento.ds_texto_final_interno , ', ') FROM tb_processo_evento julgamento
+                             INNER JOIN tb_evento_processual ev ON
+               (julgamento.id_evento = ev.id_evento_processual)
+           WHERE
+               julgamento.id_processo = sentencas_por_processo_com_filtros.id_processo
+             AND julgamento.dt_atualizacao BETWEEN
+                   sentencas_por_processo_com_filtros.dt_juntada - ('5 minutes')::interval
+               AND sentencas_por_processo_com_filtros.dt_juntada + ('5 minutes')::interval
+             AND ev.cd_evento IN
+                 (
+                  '442', '450', '452', '444',
+                  '471', '446', '448', '455',
+                  '11795', '220', '50103', '221', '219',
+                  '458', '461', '459', '465',
+                  '462', '457', '460', '464', '454',
+                  '377', '466'
+                     )
+       ) AS "Movimentos Julgamento"
+    ,pt.nm_tarefa as "Tarefa Atual"
+FROM sentencas_por_processo_com_filtros
+    INNER JOIN tb_usuario_login ul on (ul.id_usuario = sentencas_por_processo_com_filtros.id_pessoa)
+    INNER JOIN tb_processo p ON (p.id_processo = sentencas_por_processo_com_filtros.id_processo)
     inner join tb_processo_trf ptrf on ptrf.id_processo_trf = p.id_processo
     inner join tb_orgao_julgador oj on oj.id_orgao_julgador = ptrf.id_orgao_julgador
     INNER JOIN tb_classe_judicial cj ON (cj.id_classe_judicial = ptrf.id_classe_judicial)
@@ -79,10 +135,10 @@ WHERE
                                         ('116', '991', '992', '990', '993', '994', '156')
                         )                    
                         WHERE 
-                        julgamento.id_processo = sentencas_conhecimento_proferidas.id_processo
+                        julgamento.id_processo = sentencas_por_processo_com_filtros.id_processo
                         AND julgamento.dt_atualizacao BETWEEN 
-                            sentencas_conhecimento_proferidas.dt_juntada - ('5 minutes')::interval
-                            AND sentencas_conhecimento_proferidas.dt_juntada + ('5 minutes')::interval
+                            sentencas_por_processo_com_filtros.dt_juntada - ('5 minutes')::interval
+                            AND sentencas_por_processo_com_filtros.dt_juntada + ('5 minutes')::interval
                         AND ev.cd_evento IN 
                             -- 442 - Concedida a segurança a "nome da parte"
                             -- 450 - Concedida em parte a segurança a "nome da parte"
@@ -119,10 +175,10 @@ WHERE
         THEN EXISTS 
                 (
                     SELECT 1 FROM tb_processo_evento acordo
-                    WHERE acordo.id_processo = sentencas_conhecimento_proferidas.id_processo
+                    WHERE acordo.id_processo = sentencas_por_processo_com_filtros.id_processo
                         AND acordo.dt_atualizacao BETWEEN 
-                            sentencas_conhecimento_proferidas.dt_juntada - ('5 minutes')::interval
-                            AND sentencas_conhecimento_proferidas.dt_juntada + ('5 minutes')::interval
+                            sentencas_por_processo_com_filtros.dt_juntada - ('5 minutes')::interval
+                            AND sentencas_por_processo_com_filtros.dt_juntada + ('5 minutes')::interval
                         -- 377, Homologado o acordo em execução ou em cumprimento de sentença (valor do acordo: 1000,00)
                         -- 466, Homologada a transação
                         AND acordo.id_evento IN (377, 466)
@@ -130,4 +186,4 @@ WHERE
         -- Todos
         ELSE FALSE
     END
-ORDER BY ul.ds_nome, sentencas_conhecimento_proferidas.dt_juntada
+ORDER BY ul.ds_nome_consulta, sentencas_por_processo_com_filtros.dt_juntada

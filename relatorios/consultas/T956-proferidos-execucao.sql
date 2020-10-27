@@ -15,12 +15,12 @@ movimentos_julgado_incidentes_execucao AS (
     FROM tb_evento_processual ev 
     WHERE 
                     -- eh movimento de julgamento
--- 219   - Julgado(s) procedente(s) o(s) pedido(s) (#{classe processual}/ #{nome do incidente}) de #{nome da parte}
--- 221   - Julgado(s) procedente(s) em parte o(s) pedido(s) (#{classe processual} / #{nome do incidente}) de #{nome da parte}
--- 220   - Julgado(s) improcedente(s) o(s) pedido(s) (#{classe processual} / #{nome do incidente}) de #{nome da parte}
--- 50013 - Julgado(s) liminarmente improcedente(s) o(s) pedido(s) (#{classe processual} / #{nome do incidente}) de #{nome da parte}
--- 50050 - Extinto com resolução do mérito o incidente #{nome do incidente} de #{nome da parte}
--- 50048 - Extinto sem resolução do mérito o incidente #{nome do incidente} de #{nome da parte}
+        -- 219   - Julgado(s) procedente(s) o(s) pedido(s) (#{classe processual}/ #{nome do incidente}) de #{nome da parte}
+        -- 221   - Julgado(s) procedente(s) em parte o(s) pedido(s) (#{classe processual} / #{nome do incidente}) de #{nome da parte}
+        -- 220   - Julgado(s) improcedente(s) o(s) pedido(s) (#{classe processual} / #{nome do incidente}) de #{nome da parte}
+        -- 50013 - Julgado(s) liminarmente improcedente(s) o(s) pedido(s) (#{classe processual} / #{nome do incidente}) de #{nome da parte}
+        -- 50050 - Extinto com resolução do mérito o incidente #{nome do incidente} de #{nome da parte}
+        -- 50048 - Extinto sem resolução do mérito o incidente #{nome do incidente} de #{nome da parte}
         ev.cd_evento IN 
         ('219', '221', '220', '50013', '50050', '50048')
 ) 
@@ -236,10 +236,10 @@ movimentos_julgado_incidentes_execucao AS (
     SELECT peticoes_incidentes_exec.* FROM peticoes_incidentes_exec
     WHERE peticoes_incidentes_exec.mov_julgamento IS DISTINCT FROM 50088
 )
-, incidentes_julgados AS (
+, incidentes_execucao_julgados_no_periodo AS (
     SELECT incidentes_sem_alterada_peticao.id_processo,
            count(incidentes_sem_alterada_peticao.id_processo) AS numero_julgados,
-           MAX(incidentes_sem_alterada_peticao.dt_j) AS data_ultimo_julgado
+           incidentes_sem_alterada_peticao.dt_j AS data_ultimo_julgado
     FROM incidentes_sem_alterada_peticao
     WHERE incidentes_sem_alterada_peticao.dt_j::date BETWEEN
               COALESCE(:DATA_INICIAL_OPCIONAL, date_trunc('month', current_date))::date
@@ -247,29 +247,29 @@ movimentos_julgado_incidentes_execucao AS (
               COALESCE(:DATA_OPCIONAL_FINAL, CURRENT_DATE)::date
     GROUP BY incidentes_sem_alterada_peticao.id_processo, incidentes_sem_alterada_peticao.dt_j
 )
-, incidentes_por_magistrado AS (
+, incidentes_execucao_julgados_por_magistrado AS (
     SELECT edj.id_pessoa,
-           SUM(incidentes_julgados.numero_julgados) AS quantidade_julgado
+           SUM(incidentes_execucao_julgados_no_periodo.numero_julgados) AS quantidade_julgado
     FROM processos_com_incidentes_assinados edj
-             INNER JOIN incidentes_julgados ON (incidentes_julgados.id_processo = edj.id_processo)
+             INNER JOIN incidentes_execucao_julgados_no_periodo ON (incidentes_execucao_julgados_no_periodo.id_processo = edj.id_processo)
     GROUP BY edj.id_pessoa
 )
 SELECT
     'TOTAL' AS "Magistrado",
-    SUM(incidentes_julgados.numero_julgados) AS "Incidentes Julgados",
-    '-' as "Ver Incidentes Julgados"
-FROM incidentes_julgados
+    SUM(incidentes_execucao_julgados_por_magistrado.quantidade_julgado) AS "Incidentes de Execução julgados",
+    '-' as "Ver Incidentes de Execução julgados pelo Magistrado"
+FROM incidentes_execucao_julgados_por_magistrado
 UNION ALL
 (
 
     SELECT ul.ds_nome_consulta AS "Magistrado",
-           incidentes_por_magistrado.quantidade_julgado AS "Incidentes Julgados"
+           incidentes_execucao_julgados_por_magistrado.quantidade_julgado AS "Incidentes de Execução julgados"
             ,
-           '$URL/execucao/T957?MAGISTRADO='||incidentes_por_magistrado.id_pessoa
+           '$URL/execucao/T957?MAGISTRADO='||incidentes_execucao_julgados_por_magistrado.id_pessoa
                ||'&DATA_INICIAL_OPCIONAL='||to_char(coalesce(:DATA_INICIAL_OPCIONAL, date_trunc('month', current_date))::date,'mm/dd/yyyy')
                ||'&DATA_OPCIONAL_FINAL='||to_char((coalesce(:DATA_OPCIONAL_FINAL, current_date))::date,'mm/dd/yyyy')
-               ||'&texto='||incidentes_por_magistrado.quantidade_julgado as "Ver EDs Julgados"
-    FROM incidentes_por_magistrado
-             INNER JOIN tb_usuario_login ul ON (ul.id_usuario = incidentes_por_magistrado.id_pessoa)
+               ||'&texto='||incidentes_execucao_julgados_por_magistrado.quantidade_julgado as "Ver EDs Julgados"
+    FROM incidentes_execucao_julgados_por_magistrado
+             INNER JOIN tb_usuario_login ul ON (ul.id_usuario = incidentes_execucao_julgados_por_magistrado.id_pessoa)
     ORDER BY ul.ds_nome_consulta
 )

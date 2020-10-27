@@ -170,8 +170,42 @@ WITH RECURSIVE
         ORDER BY ed.id_processo, ed.dt_atualizacao, julgamento.id_processo_evento
     )
 )
-   , incidentes_sem_alterada_peticao AS (
-    SELECT peticoes_incidentes_exec.* FROM peticoes_incidentes_exec
+, incidentes_sem_alterada_peticao AS (
+    SELECT peticoes_incidentes_exec.*
+           , concluso.id_pessoa_magistrado
+           , concluso.pendente_desde
+           , concluso.movimento_concluso
+    FROM peticoes_incidentes_exec
+    INNER JOIN LATERAL (
+--     explain
+        SELECT concluso.id_pessoa_magistrado
+             , mov_concluso.id_processo
+             , mov_concluso.dt_atualizacao AS pendente_desde
+             , mov_concluso.ds_texto_final_interno AS movimento_concluso
+        FROM
+            tb_conclusao_magistrado concluso
+                INNER JOIN tb_processo_evento mov_concluso
+                           ON (mov_concluso.id_processo_evento = concluso.id_processo_evento
+                               AND mov_concluso.id_processo_evento_excludente IS NULL
+                               -- esse é o codigo do movimento. se esse id mudar tem de ir na tb_evento_processual.cd_evento
+                               and mov_concluso.id_evento = 51
+                               -- Conclusão do tipo "Julgamento da ação incidental"
+                               AND
+                               CASE
+                                   WHEN peticoes_incidentes_exec.id_julgamento IS NOT NULL THEN TRUE
+                                   ELSE (
+                                       mov_concluso.ds_texto_final_interno ilike 'Conclusos os autos para julgamento da ação incidental na execu__o%'
+                                       OR mov_concluso.ds_texto_final_interno ilike 'Conclusos os autos para julgamento dos Embargos _ Execu__o%'
+                                       OR mov_concluso.ds_texto_final_interno ilike 'Conclusos os autos para julgamento da Impugna__o _ Sentença de Liquida__o%'
+                                   )
+                               END
+                               )
+        WHERE
+            peticoes_incidentes_exec.id_processo = mov_concluso.id_processo
+            AND mov_concluso.dt_atualizacao <= (coalesce(peticoes_incidentes_exec.dt_j, current_timestamp))::timestamp
+        ORDER BY mov_concluso.dt_atualizacao DESC
+        LIMIT 1
+        ) concluso ON TRUE
     WHERE peticoes_incidentes_exec.mov_julgamento IS DISTINCT FROM 50088
 )
 -- abaixo da pra ver cada ED julgado por processo
@@ -179,14 +213,22 @@ SELECT 'http://processo='||p.nr_processo||'&grau=primeirograu&recurso=$RECURSO_P
      , p.nr_processo AS "Número do Processo"
      , incidentes_sem_alterada_peticao.data_ed AS "Data Petição"
      , incidentes_sem_alterada_peticao.tx_ed AS "Movimento Juntada Petição"
+     , incidentes_sem_alterada_peticao.pendente_desde AS "Data Concluso"
+     , incidentes_sem_alterada_peticao.movimento_concluso AS "Movimento Concluso"
      , incidentes_sem_alterada_peticao.dt_j AS "Data Julgamento Incidente Execução"
      , incidentes_sem_alterada_peticao.tx_j AS "Movimento Julgamento Incidente Execução"
 --        , incidentes_sem_alterada_peticao.mov_julgamento
 --        , incidentes_sem_alterada_peticao.mov_julgamento IS DISTINCT FROM 50088 AS diferente_alterado
 FROM incidentes_sem_alterada_peticao
-         INNER JOIN tb_processo p ON (p.id_processo = incidentes_sem_alterada_peticao.id_processo)
-WHERE incidentes_sem_alterada_peticao.dt_j::date BETWEEN
+    INNER JOIN tb_processo p ON (p.id_processo = incidentes_sem_alterada_peticao.id_processo)
+--     INNER JOIN tb_usuario_login mag_concluso ON (mag_concluso.id_usuario = incidentes_sem_alterada_peticao.id_pessoa_magistrado)
+WHERE
+    CASE
+      WHEN incidentes_sem_alterada_peticao.dt_j::date IS NULL THEN TRUE
+      ELSE
+        incidentes_sem_alterada_peticao.dt_j::date BETWEEN
           COALESCE(:DATA_INICIAL_OPCIONAL, date_trunc('month', current_date))::date
           AND
           COALESCE(:DATA_OPCIONAL_FINAL, CURRENT_DATE)::date
+    END
 ORDER BY 2, incidentes_sem_alterada_peticao.dt_j

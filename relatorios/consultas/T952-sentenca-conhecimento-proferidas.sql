@@ -1,5 +1,5 @@
 -- [R136873][T952] - Relatório SAO - SENTENÇAS DE CONHECIMENTO PROFERIDAS.
-
+-- EXPLAIN
 WITH sentencas_conhecimento_proferidas AS (
 select 
     assin.id_pessoa, 
@@ -40,7 +40,7 @@ select
 
         )
 )
-, sentencas_conhecimento AS (
+, sentencas_acordos_conhecimento_por_magistrado AS (
     SELECT  sentencas_conhecimento_proferidas.id_pessoa, 
         COUNT(sentencas_conhecimento_proferidas.id_pessoa) 
             FILTER 
@@ -118,32 +118,29 @@ select
     GROUP BY sentencas_conhecimento_proferidas.id_pessoa
 )
 SELECT 
-    'TOTAL' AS "Magistrado", 
-    SUM(sentencas_conhecimento.sentencas_conhecimento) AS "Sentenças", 
-    '-' as "Ver Sentenças",
-    SUM(sentencas_conhecimento.acordos_conhecimento) AS "Acordos", 
-    '-' as "Ver Acordos"
-FROM sentencas_conhecimento
+    'TOTAL' AS "Magistrado"
+    ,SUM(sentencas_acordos_conhecimento_por_magistrado.acordos_conhecimento) AS "Conciliações"
+    ,'-' as "Ver Conciliações"
+    ,SUM(sentencas_acordos_conhecimento_por_magistrado.sentencas_conhecimento) AS "Sentenças de conhecimento proferidas"
+    ,'-' as "Ver Sentenças de conhecimento proferidas"
+FROM sentencas_acordos_conhecimento_por_magistrado
 UNION ALL
 (
-    SELECT ul.ds_nome AS "Magistrado", 
-        sentencas_conhecimento.sentencas_conhecimento  AS "Sentenças"
-        ,
-        '$URL/execucao/T953?MAGISTRADO='||sentencas_conhecimento.id_pessoa
-        ||'&SENTENCA_OU_ACORDO=1'
-        ||'&DATA_INICIAL_OPCIONAL='||to_char(coalesce(:DATA_INICIAL_OPCIONAL, date_trunc('month', current_date))::date,'mm/dd/yyyy')
-        ||'&DATA_OPCIONAL_FINAL='||to_char(coalesce(:DATA_OPCIONAL_FINAL, current_date)::date,'mm/dd/yyyy')
-        ||'&texto='||sentencas_conhecimento.sentencas_conhecimento as "Ver Sentenças"
-        ,
-        sentencas_conhecimento.acordos_conhecimento AS "Acordos"
-        ,
-        '$URL/execucao/T953?MAGISTRADO='||sentencas_conhecimento.id_pessoa
+    SELECT ul.ds_nome AS "Magistrado"
+        , sentencas_acordos_conhecimento_por_magistrado.acordos_conhecimento AS "Conciliações"
+        , '$URL/execucao/T953?MAGISTRADO='||sentencas_acordos_conhecimento_por_magistrado.id_pessoa
         ||'&SENTENCA_OU_ACORDO=2'
         ||'&DATA_INICIAL_OPCIONAL='||to_char(coalesce(:DATA_INICIAL_OPCIONAL, date_trunc('month', current_date))::date,'mm/dd/yyyy')
         ||'&DATA_OPCIONAL_FINAL='||to_char(coalesce(:DATA_OPCIONAL_FINAL, current_date)::date,'mm/dd/yyyy')
-        ||'&texto='||sentencas_conhecimento.acordos_conhecimento as "Ver Acordos"
-    FROM sentencas_conhecimento  
-        INNER JOIN tb_usuario_login ul ON (ul.id_usuario = sentencas_conhecimento.id_pessoa)
+        ||'&texto='||sentencas_acordos_conhecimento_por_magistrado.acordos_conhecimento as "Ver Acordos"
+        , sentencas_acordos_conhecimento_por_magistrado.sentencas_conhecimento  AS "Sentenças"
+        , '$URL/execucao/T953?MAGISTRADO='||sentencas_acordos_conhecimento_por_magistrado.id_pessoa
+        ||'&SENTENCA_OU_ACORDO=1'
+        ||'&DATA_INICIAL_OPCIONAL='||to_char(coalesce(:DATA_INICIAL_OPCIONAL, date_trunc('month', current_date))::date,'mm/dd/yyyy')
+        ||'&DATA_OPCIONAL_FINAL='||to_char(coalesce(:DATA_OPCIONAL_FINAL, current_date)::date,'mm/dd/yyyy')
+        ||'&texto='||sentencas_acordos_conhecimento_por_magistrado.sentencas_conhecimento as "Ver Sentenças"
+    FROM sentencas_acordos_conhecimento_por_magistrado
+        INNER JOIN tb_usuario_login ul ON (ul.id_usuario = sentencas_acordos_conhecimento_por_magistrado.id_pessoa)
     ORDER BY ul.ds_nome
 )
 
