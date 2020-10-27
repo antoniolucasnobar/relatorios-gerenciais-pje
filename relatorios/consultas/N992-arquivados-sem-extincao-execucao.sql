@@ -38,6 +38,10 @@ WITH
     FROM tb_processo_evento pe
     WHERE
             pe.dt_atualizacao >= '01/01/2020'::date
+      AND pe.dt_atualizacao :: date between
+          coalesce(:DATA_INICIAL_OPCIONAL, '01/01/2020'::date)::date
+          and (coalesce(:DATA_OPCIONAL_FINAL, current_date))::date
+
       AND pe.id_evento = (SELECT id_evento_processual FROM movimento_arq_def)
       AND NOT EXISTS(
                 SELECT 1 FROM tb_processo_evento extincao_execucao
@@ -53,9 +57,9 @@ WITH
 )
 select
     'http://processo='||p.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_DETALHES_PROCESSO' as " "
-    , cj.ds_classe_judicial_sigla AS "Classe"
     ,'http://processo='||p.nr_processo||'&grau=primeirograu&recurso=$RECURSO_PJE_TAREFA&texto='
          ||p.nr_processo AS "Processo"
+    , cj.ds_classe_judicial_sigla AS "Classe"
     ,REPLACE(oj.ds_orgao_julgador, 'VARA DO TRABALHO', 'VT' ) AS "Órgão Julgador"
     ,to_char(ad.dt_arquivamento, 'dd/mm/yyyy') AS "Data do Arquivamento"
     ,pt.nm_tarefa as "Tarefa"
